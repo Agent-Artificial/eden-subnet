@@ -1,0 +1,27 @@
+[tool.poetry]
+name = "eden-subnet"
+version = "0.1.0"
+description = "template for validator miner pair for eden subnet on communeai"
+authors = ["Richard <Bakobiibizo@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+uvicorn = "^0.29.0"
+httpx = "^0.27.0"
+loguru = "^0.7.2"
+torch = "^2.3.0"
+torchaudio = "^2.3.0"
+torchvision = "^0.18.0"
+transformers = {git = "https://github.com/huggingface/transformers"}
+sentence-transformers = "^2.7.0"
+tiktoken = "^0.6.0"
+cellium = "^0.1.0"
+substrate-interface = "^1.7.8"
+communex = "^0.1.25.1"
+python-dotenv = "^1.0.1"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
