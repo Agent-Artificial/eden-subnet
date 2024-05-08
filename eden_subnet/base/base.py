@@ -137,7 +137,7 @@ class BaseValidator(BaseModule):
             )
             result = asyncio.run(
                 main=client.call(
-                    fn="sample",
+                    fn="generate",
                     target_key=miner_ss58_address,
                     params=miner_input,
                     timeout=self.call_timeout,
@@ -218,5 +218,5 @@ class BaseValidator(BaseModule):
             modules_info[netuid] = {"weight": weights}
         return modules_info
 
-    def get_validate_input(self):
+    def validate_input(self):
         raise NotImplementedError

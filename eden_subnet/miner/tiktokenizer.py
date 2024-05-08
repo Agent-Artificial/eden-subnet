@@ -1,5 +1,8 @@
+from numpy import dtype, floating, ndarray
+from numpy._typing import _64Bit
 import tiktoken
-from typing import List
+from typing import Any, List
+
 from eden_subnet.miner.config import TokenUsage
 
 
@@ -81,7 +84,9 @@ class TikTokenizer(TokenUsage):
             total=self.session_total,
         )
 
-    def create_embedding(self, text: str, encoding_name: str = "cl100k_base") -> List[int]:
+    def create_embedding(
+        self, text: str, encoding_name: str = "cl100k_base"
+    ) -> List[int]:
         """
         Creates an embedding for the given text using the specified encoding.
 
@@ -92,8 +97,8 @@ class TikTokenizer(TokenUsage):
         Returns:
             List[int]: The encoded representation of the input text.
         """
-        encoding = tiktoken.get_encoding(encoding_name)
-        return encoding.encode(text)
+        encoding: tiktoken.Encoding = tiktoken.get_encoding(encoding_name=encoding_name)
+        return encoding.encode(text=text)
 
     def count_tokens(self, string: str, encoding_name: str = "cl100k_base") -> int:
         """
@@ -108,3 +113,23 @@ class TikTokenizer(TokenUsage):
         """
         encoding: tiktoken.Encoding = tiktoken.get_encoding(encoding_name=encoding_name)
         return len(encoding.encode(text=string))
+
+    def cosine_similarity(
+        self, embedding1: List[int], embedding2: List[int]
+    ) -> floating[_64Bit | Any]:
+        """
+        Calculates the cosine similarity between two embeddings.
+
+        Parameters:
+            embedding1 (List[int]): The first embedding.
+            embedding2 (List[int]): The second embedding.
+
+        Returns:
+            float: The cosine similarity between the two embeddings.
+        """
+        from scipy.spatial import distance
+        import numpy as np
+
+        np_embedding1 = np.array(object=embedding1)
+        np_embedding2 = np.array(object=embedding2)
+        return 1 - distance.cosine(u=np_embedding1, v=np_embedding2)
