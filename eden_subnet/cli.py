@@ -12,8 +12,6 @@ from typing import Annotated, Optional
 from dotenv import load_dotenv
 from importlib import import_module
 
-logger.add(sink=asyncio.Queue())
-
 app = typer.Typer()
 
 
