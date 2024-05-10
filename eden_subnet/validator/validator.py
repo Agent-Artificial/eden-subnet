@@ -1,22 +1,25 @@
 import random
+import json
+import asyncio
+
+from pathlib import Path
+from loguru import logger
+from dotenv import load_dotenv
+from typing import Any, Generator, List, Union
 from numpy import floating
 from numpy._typing import _64Bit
-from eden_subnet.base.base import BaseValidator, SampleInput
-from eden_subnet.miner.config import Message
-from eden_subnet.validator.config import ValidatorSettings, TOPICS
-from eden_subnet.miner.tiktokenizer import TikTokenizer, TokenUsage
-from eden_subnet.validator.sigmoid import threshold_sigmoid_reward_distribution
+from cellium.client import CelliumClient
 from communex.module.client import ModuleClient
 from communex.types import Ss58Address
 from communex.compat.key import Keypair
 from communex.client import CommuneClient
 from communex._common import get_node_url
-from cellium.client import CelliumClient
-from typing import Any, Generator, List, Union
-from pathlib import Path
-from loguru import logger
-import json
-from dotenv import load_dotenv
+
+from eden_subnet.base.base import BaseValidator, SampleInput
+from eden_subnet.miner.config import Message
+from eden_subnet.validator.config import ValidatorSettings, TOPICS
+from eden_subnet.miner.tiktokenizer import TikTokenizer, TokenUsage
+from eden_subnet.validator.sigmoid import threshold_sigmoid_reward_distribution
 
 load_dotenv()
 
@@ -303,3 +306,15 @@ class Validator(BaseValidator):
                 ),
             )
         await server.call(fn="validation_loop", target_key=self.ss58_key, timeout=30)
+
+
+if __name__ == "__main__":
+    settings = ValidatorSettings(
+        key_name="agent.ArtificialValidator",
+        module_path="agent.ArtificialValidator",
+        host="0.0.0.0",
+        port=50050,
+        use_testnet=True,
+    )
+    validator = Validator(settings)
+    asyncio.run(validator.serve())
