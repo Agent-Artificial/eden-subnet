@@ -169,30 +169,24 @@ class Validator(BaseValidator):
                     logger.error(f"\nNo miner found. Please try again later. {e}")
                     continue
 
-                uid, ss58_address = miner
+                uid, address = miner
 
                 if miner not in self.checked_list:
-                    if not miner:
-                        self.checked_list = []
-                        logger.error("\nNo miner found. Please try again later.")
-                        continue
-
                     self.checked_list.append(miner)
                     self.checking_list.append(miner)
 
             logger.debug(f"\nChecking miners:\n {self.checking_list}")
+            miner_responses = {}
             try:
-                miner_response = self.get_miner_generation(
+                miner_responses = self.get_miner_generation(
                     miner_list=self.checking_list,  # type: ignore
                     miner_input=message,
                 )
-                logger.debug(f"\nMiner response: {miner_response}")
+                logger.debug(f"\nMiner response: {miner_responses}")
             except Exception as e:
-                logger.error(f"\nMiner response not found: {e}")
-                continue
-            for miner_response in miner_response:
+                logger.error(f"\nError getting miner reponses: {e}")
+            for uid, miner_response in miner_responses.items():
                 try:
-                    uid = miner_response["uid"]
                     score = self.validate_input(
                         embedding1=miner_response, embedding2=sample_embedding
                     )

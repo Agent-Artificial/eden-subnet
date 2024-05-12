@@ -1,9 +1,12 @@
 import asyncio
 import base64
 import re
+
+import requests
 from importlib import import_module
 from re import Match
 from pydantic import Field, BaseModel
+from typing import List, Optional, Tuple, Dict
 from loguru import logger
 from communex.client import CommuneClient
 from communex._common import get_node_url
@@ -44,9 +47,6 @@ class BaseModule(Module):
         use_testnet: bool,
         call_timeout: int = 60,
     ) -> None:
-        """
-        Initializes the BaseValidator object with a default call timeout of 60 seconds.
-        """
         settings = {
             "key_name": key_name,
             "module_path": module_path,
@@ -67,26 +67,10 @@ class BaseModule(Module):
 
     @staticmethod
     def extract_address(string: str) -> re.Match[str] | None:
-        """
-        Extracts an address from a string.
-        """
         return re.search(pattern=IP_REGEX, string=string)
 
     @staticmethod
-    def get_netuid(client: CommuneClient, subnet_name: str = "mosaic") -> int:
-        """
-        Get the netuid associated with a given subnet name.
-
-        Args:
-            client (CommuneClient): The commune client object.
-            subnet_name (str, optional): The name of the subnet. Defaults to "mosaic".
-
-        Returns:
-            int: The netuid associated with the subnet name.
-
-        Raises:
-            ValueError: If the subnet name is not found.
-        """
+    def get_netuid(client: CommuneClient, subnet_name: str = "Eden") -> int:
         subnets: dict[int, str] = client.query_map_subnet_names()
         for netuid, name in subnets.items():
             if name == subnet_name:
@@ -95,24 +79,7 @@ class BaseModule(Module):
         raise ValueError(f"Subnet {subnet_name} not found")
 
     @staticmethod
-    def get_ip_port(modules_addresses: dict[int, str]) -> dict[int, list[str]]:
-        """
-        Get the IP addresses and ports from a dictionary of module addresses.
-
-        Args:
-            modules_addresses (dict[int, str]): A dictionary mapping module IDs to their addresses.
-
-        Returns:
-            dict[int, list[str]]: A dictionary mapping module IDs to a list of IP addresses and ports.
-
-        Raises:
-            None
-
-        Examples:
-            >>> modules_addresses = {1: "192.168.0.1:8080", 2: "10.0.0.1:9090"}
-            >>> get_ip_port(modules_addresses)
-            {1: ["192.168.0.1", "8080"], 2: ["10.0.0.1", "9090"]}
-        """
+    def get_ip_port(modules_addresses: Dict[int, str]) -> Dict[int, List[str]]:
         filtered_addr: dict[int, Match[str] | None] = {
             id: BaseValidator.extract_address(string=addr)
             for id, addr in modules_addresses.items()
@@ -138,53 +105,41 @@ class BaseValidator(BaseModule):
         super().__init__(**config.model_dump())
         self.settings = config
 
+    def make_validation_request(self, uid, miner_input, module_host, module_port):
+        try:
+            url = f"http://{module_host}:{module_port}/generate"
+            reponse = requests.post(url, json=miner_input.model_dump(), timeout=30)
+            if reponse.status_code == 200:
+                result = reponse.content
+                return {uid: result}
+        except ValueError as e:
+            logger.error(e)
+        return {uid: b"0x00001"}
+
     def get_miner_generation(
         self,
-        miner_list: tuple[list[str], Ss58Address],
+        miner_list: tuple[list[str], dict[str, int]],
         miner_input: Message,
     ):
-        """
-        A function to calculate the miner generation based on the provided miner list and input.
-
-        Args:
-            self: The instance of the class.
-            miner_list: A tuple containing a list of miner connections and an Ss58Address.
-            miner_input: The sample input for the miner.
-
-        Returns:
-            Bytes: The miner generation calculated based on the input.
-        """
         results_dict = {}
         for miner_dict in miner_list:
-            uid = miner_dict["netuid"]
+            uid: str = miner_dict["netuid"]  # type: ignore
             keys = c_client.query_map_key(netuid=10)
-            miner_ss58_address = keys[uid]
-
-            module_host, module_port = miner_dict["ss58_address"]
+            miner_ss58_address = keys["netuid"]
+            module_host, module_port = miner_dict["address"]
             logger.debug(
-                f"\nUid: {uid}\nSs58Address: {miner_ss58_address}\nModule host:{module_host}\nModule port: {module_port}"
+                f"\nUid: {uid}\nAddress: {miner_ss58_address}\nModule host:{module_host}\nModule port: {module_port}"
             )
-            try:
-                import requests
-
-                url = f"http://{module_host}:{module_port}/generate"
-                reponse = requests.post(url, json=miner_input.model_dump(), timeout=30)
-                if reponse.status_code == 200:
-                    result = reponse.content
-                results_dict[uid] = result
-            except ValueError as e:
-                logger.error(e)
-                results_dict[uid] = "0.0001"
+            result = self.make_validation_request(
+                uid=uid,
+                miner_input=miner_input,
+                module_host=module_host,
+                module_port=module_port,
+            )
+            results_dict[uid] = result
         return results_dict
 
-    def get_queryable_miners(self):
-        """
-        Retrieves queryable miners and their information based on the netuid and self attributes.
-
-        :return: A dictionary containing the information of queryable miners. The keys are module IDs, and the values are dictionaries
-                 with 'netuid', 'ss58_address', 'host', and 'port' information.
-        :rtype: dict[int, dict[str, Union[int, str]]]
-        """
+    def get_queryable_miners(self) -> dict[int, tuple[str, int]] | None:
         try:
             module_addresses = c_client.query_map_address(netuid=SUBNET_NETUID)
             module_keys = c_client.query_map_key(netuid=SUBNET_NETUID)
@@ -204,7 +159,7 @@ class BaseValidator(BaseModule):
                     continue
                 if ss58_addr := modules_filtered_address.get(module_id):
                     module_info["netuid"] = module_id
-                    module_info["ss58_address"] = ss58_addr
+                    module_info["address"] = ss58_addr
                 module_host_address = module_addresses[module_id]
                 if module_host_address := modules_filtered_address.get(module_id):
                     if ":" in module_host_address:
