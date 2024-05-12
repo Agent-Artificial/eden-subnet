@@ -3,40 +3,59 @@ import base64
 import re
 from importlib import import_module
 from re import Match
-from substrateinterface import Keypair
+from pydantic import Field, BaseModel
 from loguru import logger
 from communex.client import CommuneClient
-from communex.module.client import ModuleClient
 from communex._common import get_node_url
 from communex.types import Ss58Address
 from eden_subnet.base.config import (
     ModuleSettings,
-    SampleInput,
     Module,
-    IP_REGEX,
     SUBNET_NETUID,
 )
+
+IP_REGEX = re.compile(pattern=r"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d+")
+c_client: CommuneClient = CommuneClient(url=get_node_url(use_testnet=False))
+
+
+class Message(BaseModel):
+    content: str
+    role: str
 
 
 class BaseModule(Module):
     """Base validator class to inherit."""
 
-    def __init__(self, settings: ModuleSettings) -> None:
+    settings: ModuleSettings
+
+    netuid: int = SUBNET_NETUID
+
+    class Config:
+        arbitrary_types_allowed = True
+        extra = "ignore"
+
+    def __init__(
+        self,
+        key_name: str,
+        module_path: str,
+        host: str,
+        port: int,
+        ss58_address: str,
+        use_testnet: bool,
+        call_timeout: int = 60,
+    ) -> None:
         """
         Initializes the BaseValidator object with a default call timeout of 60 seconds.
         """
-        super().__init__(**settings.model_dump())
-        self.settings: ModuleSettings = settings or ModuleSettings(
-            key_name="",
-            module_path="",
-            host="0.0.0.0",
-            port=0,
-            ss58_address=Ss58Address(""),
-            use_testnet=False,
-        )
-        self.call_timeout = 60
-        self.c_client = CommuneClient(url=get_node_url(use_testnet=False))
-        self.netuid = SUBNET_NETUID
+        settings = {
+            "key_name": key_name,
+            "module_path": module_path,
+            "host": host,
+            "port": port,
+            "ss58_address": ss58_address,
+            "use_testnet": use_testnet,
+            "call_timeout": call_timeout,
+        }
 
     def dynamic_import(self) -> Module:
         module_name, class_name = self.settings.module_path.rsplit(sep=".", maxsplit=1)
@@ -107,14 +126,23 @@ class BaseModule(Module):
 
 
 class BaseValidator(BaseModule):
-    def __init__(self, settings: ModuleSettings) -> None:
-        super().__init__(settings=settings)
+    key_name: str = Field(default="")
+    module_path: str = Field(default="")
+    host: str = Field(default="")
+    port: int = Field(default=0)
+    ss58_address: str = Field(default="")
+    use_testnet: bool = Field(default=False)
+    call_timeout: int = Field(default=60)
+
+    def __init__(self, config: ModuleSettings) -> None:
+        super().__init__(**config.model_dump())
+        self.settings = config
 
     def get_miner_generation(
         self,
         miner_list: tuple[list[str], Ss58Address],
-        miner_input: SampleInput,
-    ) -> bytes:
+        miner_input: Message,
+    ):
         """
         A function to calculate the miner generation based on the provided miner list and input.
 
@@ -126,26 +154,28 @@ class BaseValidator(BaseModule):
         Returns:
             Bytes: The miner generation calculated based on the input.
         """
-        miner_conection, miner_ss58_address = miner_list
-        module_host, module_port = miner_conection
-        logger.debug("call", module_host, module_port)
-        try:
-            client = ModuleClient(
-                host=module_host,
-                port=int(module_port),
-                key=Keypair(ss58_address=miner_ss58_address),
+        results_dict = {}
+        for miner_dict in miner_list:
+            uid = miner_dict["netuid"]
+            keys = c_client.query_map_key(netuid=10)
+            miner_ss58_address = keys[uid]
+
+            module_host, module_port = miner_dict["ss58_address"]
+            logger.debug(
+                f"\nUid: {uid}\nSs58Address: {miner_ss58_address}\nModule host:{module_host}\nModule port: {module_port}"
             )
-            result = asyncio.run(
-                main=client.call(
-                    fn="generate_embeddings",
-                    target_key=miner_ss58_address,
-                    params=miner_input,
-                    timeout=self.call_timeout,
-                )
-            )
-        except ValueError as e:
-            logger.error(e)
-        return base64.b64decode(result)
+            try:
+                import requests
+
+                url = f"http://{module_host}:{module_port}/generate"
+                reponse = requests.post(url, json=miner_input.model_dump(), timeout=30)
+                if reponse.status_code == 200:
+                    result = reponse.content
+                results_dict[uid] = result
+            except ValueError as e:
+                logger.error(e)
+                results_dict[uid] = "0.0001"
+        return results_dict
 
     def get_queryable_miners(self):
         """
@@ -156,8 +186,8 @@ class BaseValidator(BaseModule):
         :rtype: dict[int, dict[str, Union[int, str]]]
         """
         try:
-            module_addresses = self.c_client.query_map_address(netuid=self.netuid)
-            module_keys = self.c_client.query_map_key(netuid=self.netuid)
+            module_addresses = c_client.query_map_address(netuid=SUBNET_NETUID)
+            module_keys = c_client.query_map_key(netuid=SUBNET_NETUID)
             if module_addresses:
                 module_addresses = dict(module_addresses.items())
             if module_keys:
@@ -206,7 +236,7 @@ class BaseValidator(BaseModule):
             RuntimeError: If the ss58_address of the miner is not registered in the subnet.
         """
         netuid = module_info["netuid"]
-        weights_dict = self.c_client.query_map_weights(netuid=netuid)
+        weights_dict = c_client.query_map_weights(netuid=netuid)
         ss58_key = module_info["ss58_address"]
         if ss58_key not in weights_dict:
             raise RuntimeError(f"validator key {ss58_key} is not registered in subnet")

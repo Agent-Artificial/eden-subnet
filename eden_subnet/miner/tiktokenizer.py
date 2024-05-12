@@ -1,13 +1,28 @@
 from numpy import dtype, floating, ndarray
 from numpy._typing import _64Bit
 import tiktoken
+from tiktoken import Encoding
 from typing import Any, List
 
 from eden_subnet.miner.config import TokenUsage
+from pydantic import BaseModel, Field
 
 
-class TikTokenizer(TokenUsage):
-    def __init__(self, **kwargs) -> None:
+encoding = tiktoken.get_encoding
+
+
+class TikTokenizer(BaseModel):
+    token_usage: TokenUsage = Field(default=TokenUsage)
+    historical_list: List[TokenUsage] = Field(default=list)
+    embedding_function: Encoding = Field(default=encoding)
+    __pydantic_fields_set__ = {"token_usage", "historical_list", "embedding_function"}
+    __pydantic_extra__ = {"allow_population_by_field_name": True}
+
+    class Config:
+        arbitrary_types_allowed = True
+        __pydantic_extra__ = {"allow_population_by_field_name": True}
+
+    def __init__(self) -> None:
         """
         Initializes the TikTokenManager object with the provided keyword arguments.
 
@@ -20,14 +35,9 @@ class TikTokenizer(TokenUsage):
         Returns:
             None
         """
-        super().__init__(**kwargs)
-        self.session_total = 0
-        self.request_tokens = 0
-        self.response_tokens = 0
-        self.total_tokens = kwargs["total"]
-        self.completion_tokens = kwargs["response_tokens"]
-        self.prompt_tokens = kwargs["prompt_tokens"]
+        self.token_usage: TokenUsage = TokenUsage()
         self.historical_list: List[TokenUsage] = []
+        self.embedding_function: Encoding = encoding("cl100k_base")
 
     def remove(self, index) -> TokenUsage:
         """
@@ -46,20 +56,15 @@ class TikTokenizer(TokenUsage):
             - The element at the specified index is removed from the historical list.
             - If the index is 0, the session_total, prompt_tokens, request_tokens, response_tokens, and historical_list attributes are reset to 0 or an empty list.
         """
-        self.historical_list.pop(index)
+        self.historical_list.remove(self.historical_list[index])
         if index == 0:
-            self.session_total = 0
-            self.prompt_tokens = 0
-            self.request_tokens = 0
-            self.response_tokens = 0
-            self.historical_list = 0
+            self.token_usage.total_tokens = 0
+            self.token_usage.prompt_tokens = 0
+            self.token_usage.request_tokens = 0
+            self.token_usage.response_tokens = 0
+            self.historical_list.append(TokenUsage(**self.token_usage.model_dump()))
 
-        return TokenUsage(
-            prompt=self.prompt_tokens,
-            request=self.request_tokens,
-            response=self.response_tokens,
-            total=self.session_total,
-        )
+        return self.token_usage
 
     def update(self, total: int, request: int, response: int) -> TokenUsage:
         """
@@ -73,32 +78,12 @@ class TikTokenizer(TokenUsage):
         Returns:
             str: A message indicating that the update was successful.
         """
-        self.session_total += total
-        self.prompt_tokens: int = total
-        self.request_tokens: int = request
-        self.response_tokens: int = response
-        return TokenUsage(
-            prompt=self.prompt_tokens,
-            request=self.request_tokens,
-            response=self.response_tokens,
-            total=self.session_total,
-        )
-
-    def create_embedding(
-        self, text: str, encoding_name: str = "cl100k_base"
-    ) -> List[int]:
-        """
-        Creates an embedding for the given text using the specified encoding.
-
-        Parameters:
-            text (str): The input text to create an embedding for.
-            encoding_name (str, optional): The name of the encoding to use. Defaults to "cl100k_base".
-
-        Returns:
-            List[int]: The encoded representation of the input text.
-        """
-        encoding: tiktoken.Encoding = tiktoken.get_encoding(encoding_name=encoding_name)
-        return encoding.encode(text=text)
+        self.token_usage.total_tokens += total
+        self.token_usage.prompt_tokens = total
+        self.token_usage.request_tokens = request
+        self.token_usage.response_tokens = response
+        self.historical_list.append(TokenUsage(**self.token_usage.model_dump()))
+        return self.token_usage
 
     def count_tokens(self, string: str, encoding_name: str = "cl100k_base") -> int:
         """

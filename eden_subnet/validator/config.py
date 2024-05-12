@@ -17,6 +17,7 @@ class ValidatorSettings(ModuleSettings):
             port=port,
             ss58_address=self.get_ss58_address(key_name=key_name),
             use_testnet=use_testnet,
+            call_timeout=60,
         )
 
     def get_random_int(self, min: int, max: int, number: int):
@@ -125,13 +126,3 @@ TOPICS = [
     "The role of art in society",
     "The effects of cultural assimilation",
 ]
-
-if __name__ == "__main__":
-    val = ValidatorSettings(
-        key_name="validator.Validator",
-        module_path="validator.Validator",
-        host="0.0.0.0",
-        port=50050,
-        use_testnet=False,
-    )
-    val.get_random_int(min=0, max=100, number=10)

@@ -1,0 +1,25 @@
+services:
+  eden-miner:
+    build: .
+    ports:
+      - "10001:10001"
+    volumes:
+      - .:/code
+      - /home/ubuntu/.commune:/root/.commune
+    env_file:
+      - .env
+    environment:
+      - CUDA_VISIBLE_DEVICES=1
+    command: 
+      - python 
+      - -m 
+      - eden_subnet.miner.eden 
+      - eden.Miner_1 
+      - eden.Miner_1
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

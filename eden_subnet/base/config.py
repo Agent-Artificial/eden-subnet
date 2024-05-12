@@ -33,10 +33,8 @@ class ModuleSettings(BaseModel):
     host: str
     port: int
     ss58_address: Ss58Address
+    call_timeout: int
     use_testnet: bool
-    IP_REGEX: re.Pattern[str] = re.compile(
-        pattern=r"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d+"
-    )
 
     class Config:
         arbitrary_types_allowed = True
@@ -60,6 +58,10 @@ class ModuleSettings(BaseModel):
         local_keys = local_key_addresses()
         if not key_name:
             raise ValueError("No key_name provided")
+        try:
+            local_keys[key_name]
+        except KeyError:
+            raise ValueError(f"Key {key_name} not found in local keys")
         return local_keys[key_name]
 
 

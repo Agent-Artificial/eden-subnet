@@ -1,112 +1,101 @@
 import random
 import json
 import asyncio
-
+import time
+import base64
+import uvicorn
+import os
+import requests
+from requests import Request
 from pathlib import Path
 from loguru import logger
 from dotenv import load_dotenv
-from typing import Any, Generator, List, Union
+from typing import Any, Literal, List, Union
 from numpy import floating
 from numpy._typing import _64Bit
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import HTTPException
 from cellium.client import CelliumClient
 from communex.module.client import ModuleClient
 from communex.types import Ss58Address
 from communex.compat.key import Keypair
 from communex.client import CommuneClient
 from communex._common import get_node_url
-
-from eden_subnet.base.base import BaseValidator, SampleInput
+from pydantic import ConfigDict, Field
+from eden_subnet.base.base import BaseValidator, Message
 from eden_subnet.miner.config import Message
 from eden_subnet.validator.config import ValidatorSettings, TOPICS
-from eden_subnet.miner.tiktokenizer import TikTokenizer, TokenUsage
+from eden_subnet.miner.tiktokenizer import TikTokenizer
 from eden_subnet.validator.sigmoid import threshold_sigmoid_reward_distribution
+from dotenv import load_dotenv
 
 load_dotenv()
 
-client = CelliumClient()
-client.base_url = client.choose_base_url()
-client.api_key = client.choose_api_key()
+
+c_client = CommuneClient(get_node_url())
+
+tokenizer = TikTokenizer()
 
 
 class Validator(BaseValidator):
-    """
-    A Validator class that orchestrates the validation of miners' responses against a standard sample using machine learning embeddings and similarity measures.
-    This class integrates blockchain technology for secure and decentralized validation processes.
+    key_name: str = Field(default="")
+    module_path: str = Field(default="")
+    host: str = Field(default="")
+    port: int = Field(default=0)
+    miner_list: list[tuple[str, Ss58Address]] = Field(default=[])
+    checked_list: list[tuple[str, Ss58Address]] = Field(default=[])
+    saved_key: Union[dict[Any, Any], None] = Field(default=None)
+    checking_list: list[tuple[str, Ss58Address]] = Field(default=[])
+    ss58_address: Ss58Address = Field(default_factory=None)
+    model_config: ConfigDict = ConfigDict(arbitrary_types_allowed=True)
+    settings: ValidatorSettings = Field(default_factory=ValidatorSettings)
+    __pydantic_fields_set__ = {
+        "key_name",
+        "module_path",
+        "host",
+        "port",
+        "miner_list",
+        "checked_list",
+        "saved_key",
+        "checking_list",
+        "settings",
+    }
 
-    Attributes:
-        miner_list (list[tuple[str, Ss58Address]]): A list of miners identified by a tuple containing an identifier and an Ss58Address.
-        c_client (Union[CommuneClient, None]): A client for communicating with a network node.
-        checked_list (list[tuple[str, Ss58Address]]): A list to keep track of checked miners to avoid reevaluation within a loop.
-        saved_key (Union[dict[Any, Any], None]): A dictionary holding the cryptographic key data.
-        checking_list (list[tuple[str, Ss58Address]]): A list to temporarily store miners being currently evaluated.
-    """
-
-    miner_list: list[tuple[str, Ss58Address]] = []
-    c_client: Union[CommuneClient, None]
-    checked_list: list[tuple[str, Ss58Address]] = []
-    saved_key: Union[dict[Any, Any], None]
-    checking_list: list[tuple[str, Ss58Address]] = []
-
-    def __init__(self, config: ValidatorSettings) -> None:
-        """
-        Initializes the Validator with specific settings and prepares the environment for validation tasks.
-
-        Args:
-            config (ValidatorSettings): Configuration settings for the validator.
-        """
-        logger.info(f"Initializing validator with settings: {config.model_dump()}")
-        super().__init__(settings=config)
-        self.tokenizer = TikTokenizer(
-            kwargs=TokenUsage(prompt=0, total=0, request=0, response=0)
-        )
-        self.cellium = CelliumClient()
-        self.c_client = CommuneClient(url=get_node_url(use_testnet=False))
+    def __init__(self, settings: ValidatorSettings) -> None:
+        logger.info(f"Initializing validator with settings: {settings.model_dump()}")
+        super().__init__(config=settings)
+        self.key_name = settings.key_name
+        self.module_path = settings.module_path
+        self.host = settings.host
+        self.port = settings.port
         self.saved_key = json.loads(self.get_key(str(self.key_name)))  # type: ignore
-        self.ss58_key = Ss58Address(self.settings.key_name)
+        self.ss58_address = Ss58Address(self.settings.key_name)
+        self.miner_list = []
+        self.checked_list = []
+        self.checking_list = []
 
-    def get_message(self, topic) -> Message:
-        """
-        Generates a Message object with a content prompt based on a given topic.
+    async def make_request(self, message: Message) -> str:
+        import requests
+        import json
 
-        Args:
-            topic (str): The topic for which to generate the prompt.
-
-        Returns:
-            Message: A message object containing the generated prompt.
-        """
-        logger.info("generating test prompt")
-        test_prompt = f"please write a short alegory about the following topic: {topic}"
-        return Message(content=test_prompt, role="user")
-
-    def make_request(self, message: Message) -> str:
-        """
-        Makes a request to generate responses based on the provided message.
-
-        Args:
-            message (Message): The message object containing the prompt.
-
-        Returns:
-            str: The concatenated string of responses.
-        """
-        logger.info("making sample request")
-        responses: Generator[Any, Any, None] = self.cellium.generate(
-            messages=[message.model_dump()]
+        url = str(os.getenv("AGENTARTIFICIAL_URL"))
+        payload = json.dumps(
+            {
+                "messages": [message.model_dump()],
+                "model": str(os.getenv("AGENTARTIFICIAL_MODEL")),
+            }
         )
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": str(os.getenv("AGENTARTIFICIAL_API_KEY")),
+        }
 
-        return "".join(
-            "\n".join(response["choices"][0]["content"]) for response in responses
-        )
+        response = requests.request("POST", url, headers=headers, data=payload)
+
+        return response.json()["choices"][0]["message"]["content"]
 
     def get_miner_by_netuid(self, miner_id: int):
-        """
-        Retrieves a miner's Ss58 address based on their network user ID.
-
-        Args:
-            miner_id (int): The network user ID of the miner.
-
-        Returns:
-            Ss58Address or None: The Ss58Address of the miner if found, otherwise None.
-        """
         logger.info("getting miner by netuid")
         miners = self.get_queryable_miners()
         for miner, ss58 in miners:  # type: ignore
@@ -114,157 +103,114 @@ class Validator(BaseValidator):
                 return ss58
             return
 
-    def get_random_miner(self, miner_list: list):
-        """
-        Selects a random miner from the provided list of miners.
+    def get_key(self, key_name: str):
+        logger.info("getting validator key from local storage")
+        try:
+            key_dir = Path("~/.commune/key").expanduser().resolve()
+            keypaths = key_dir.iterdir()
+            for keypath in keypaths:
+                key = json.loads(keypath.read_text())["data"]
+                if key_name in key or key_name in str(keypath):
+                    return key
+        except ValueError as e:
+            logger.error(f"Key not found: {e}")
 
-        Args:
-            miner_list (list): A list of miners from which to select.
+    async def generate_sample_response(self, message: Message) -> str:
+        logger.info("generating sample response")
+        response = await self.make_request(message)
+        logger.debug(f"sample response generated:\n{response}")
+        return response
 
-        Returns:
-            tuple[str, Ss58Address]: A randomly selected miner.
-        """
-        logger.info("getting random miner")
-        return random.choice(miner_list)
+    async def get_sample_result(self):
+        logger.info("getting sample result")
+        topic = random.choice(TOPICS)
+        logger.debug(f"sample topic:\n{topic}")
+        prompt = Message(content=topic, role="user")
+        sample_result = await self.generate_sample_response(message=prompt)
+        return tokenizer.embedding_function.encode(sample_result), prompt
 
-    def get_embedding(self, text_input: str) -> List[int]:
-        """
-        Generates an embedding for the given text input using the tokenizer.
-
-        Args:
-            text_input (str): The input text to convert into an embedding.
-
-        Returns:
-            List[int]: A list of integers representing the embedding of the input text.
-        """
-        logger.info("getting sample embedding")
-        return self.tokenizer.create_embedding(text=text_input)
-
-    def evalutate_similarity(self, embedding1, embedding2) -> floating[_64Bit | Any]:
-        """
-        Evaluates the cosine similarity between two embeddings.
-
-        Args:
-            embedding1 (List[int]): The first embedding vector.
-            embedding2 (List[int]): The second embedding vector.
-
-        Returns:
-            floating: The computed similarity score between the two embeddings.
-        """
+    def validate_input(self, embedding1, embedding2):
         logger.info("evaluating sample similarity")
-        result = self.tokenizer.cosine_similarity(
+        result = tokenizer.cosine_similarity(
             embedding1=embedding1, embedding2=embedding2
         )
         logger.debug(f"similarity result: {result.hex()[:10]}...")
         return result
 
-    def get_key(self, key_name: str):
-        """
-        Retrieves the cryptographic key data from local storage based on the provided key name.
-
-        Args:
-            key_name (str): The name of the key to retrieve.
-
-        Returns:
-            dict or None: The key data if found, otherwise None.
-        """
-        logger.info("getting validator key from local storage")
-        try:
-            key_path = Path("~/.commune/key").expanduser().resolve()
-            keys = key_path.iterdir()
-            for key in keys:
-                if key_name in key.name:
-                    return json.loads(key.read_text())["data"]
-        except ValueError as e:
-            logger.error(f"Key not found: {e}")
-
-    def generate_sample_response(self, message: Message) -> str:
-        """
-        Generates a sample response for a given message.
-
-        Args:
-            message (Message): The message for which to generate a response.
-
-        Returns:
-            str: The generated response.
-        """
-        logger.info("generating sample response")
-        self.cellium.api_key = self.cellium.choose_api_key()
-        self.cellium.base_url = self.cellium.choose_base_url()
-        self.cellium.model = self.cellium.choose_model()
-        response = self.make_request(message)
-        logger.debug(f"sample response generated:\n{response}")
-        return response
-
-    def get_sample_result(self):
-        """
-        Retrieves a sample result based on a randomly chosen topic.
-
-        Returns:
-            tuple[List[int], SampleInput]: A tuple containing the embedding of the sample result and the SampleInput object.
-        """
-        logger.info("getting sample result")
-        topic = random.choice(TOPICS)
-        logger.debug(f"sample topic:\n{topic}")
-        prompt = self.get_message(topic)
-        sample_result = self.generate_sample_response(prompt)
-        sample_input = SampleInput(prompt=sample_result)
-        return self.get_embedding(text_input=sample_result), sample_input
-
-    def validate_input(self, miner_response, sample_embedding):
-        """
-        Validates the miner response against the sample embedding.
-
-        Args:
-            miner_response (List[int]): The embedding of the miner's response.
-            sample_embedding (List[int]): The embedding of the sample input.
-
-        Returns:
-            floating: The similarity score between the miner response and the sample embedding.
-        """
-        logger.info("validating miner response vs sample input")
-        similarity = self.evalutate_similarity(sample_embedding, miner_response)
-        logger.debug(f"similiarity: {similarity}")
-        return similarity
-
-    def validation_loop(self):
-        """
-        Executes the validation loop, continuously validating miners' responses and updating scores.
-        """
-        logger.info("starting validation loop")
+    async def validation_loop(self):
+        logger.info("\nStarting validation loop")
         while True:
-            sample_embedding, sample_input = self.get_sample_result()
+            # time.sleep(60)
+            sample_embedding, message = await self.get_sample_result()
+            length = len(sample_embedding)
+            zero_score = [0.0001 for _ in range(length)]
             self.checked_list = []
+            self.checking_list = []
             score_dict = {}
-            for _ in range(25):
-                miner = self.get_random_miner(self.miner_list)
+            try:
+                self.miner_list = self.get_queryable_miners()  # type: ignore
+            except Exception as e:
+                logger.error(f"\nMiner list not found: {e}")
+                continue
+
+            if len(self.miner_list) > 0 and len(self.miner_list) <= 25:
+                check_range = len(self.miner_list)
+                logger.debug(check_range)
+                if len(self.miner_list) <= 0:
+                    logger.error("\nNo miner found. Please try again later.")
+                    continue
+            else:
+                check_range = 25
+
+            for _ in range(check_range):
+                try:
+                    miner = random.choice(self.miner_list)
+                except (IndexError, KeyError) as e:
+                    logger.error(f"\nNo miner found. Please try again later. {e}")
+                    continue
+
+                uid, ss58_address = miner
+
                 if miner not in self.checked_list:
                     if not miner:
                         self.checked_list = []
-                        logger.info("No miner found. Please try again later.")
+                        logger.error("\nNo miner found. Please try again later.")
                         continue
+
                     self.checked_list.append(miner)
                     self.checking_list.append(miner)
 
-                    miner_response = self.get_miner_generation(
-                        miner_list=self.checking_list,  # type: ignore
-                        miner_input=sample_input,
-                    )
-                    if not miner_response:
-                        print("No miner response found. Please try again later.")
-
+            logger.debug(f"\nChecking miners:\n {self.checking_list}")
+            try:
+                miner_response = self.get_miner_generation(
+                    miner_list=self.checking_list,  # type: ignore
+                    miner_input=message,
+                )
+                logger.debug(f"\nMiner response: {miner_response}")
+            except Exception as e:
+                logger.error(f"\nMiner response not found: {e}")
+                continue
+            for miner_response in miner_response:
+                try:
+                    uid = miner_response["uid"]
                     score = self.validate_input(
-                        miner_response=miner_response, sample_embedding=sample_embedding
+                        embedding1=miner_response, embedding2=sample_embedding
                     )
-                    score_dict[miner] = score
+
+                    score_dict[uid] = score
+                except ValueError as e:
+                    logger.error(f"\nScore not found: {e}")
+                    score_dict[uid] = 0.0001
 
             if not score_dict:
-                logger.info("No scores generated. Please try again later.")
+                logger.error("\nNo scores generated. Please try again later.")
                 continue
 
-            adjusted_scores = threshold_sigmoid_reward_distribution(score_dict)
-            total_scores = sum(adjusted_scores.values())
-            weighted_scores = {
+            adjusted_scores: dict[int, float] = threshold_sigmoid_reward_distribution(
+                score_dict
+            )
+            total_scores: float | Literal[0] = sum(adjusted_scores.values())
+            weighted_scores: dict[int, int] = {
                 miner: int(score * 1000 / total_scores)
                 for miner, score in adjusted_scores.items()
                 if score != 0
@@ -281,14 +227,14 @@ class Validator(BaseValidator):
                 logger.info("voting on weighted scores")
                 uids = list(weighted_scores.keys())
                 weights = list(weighted_scores.values())
-                if self.c_client:
-                    self.c_client.vote(
+                if c_client:
+                    c_client.vote(
                         key=Keypair(ss58_address=self.settings.ss58_address),
                         uids=uids,
                         weights=weights,
-                        netuid=self.netuid,
+                        netuid=10,
                     )
-            except Exception as e:
+            except ConnectionError as e:
                 logger.error(e)
 
     async def serve(self) -> None:
@@ -296,16 +242,25 @@ class Validator(BaseValidator):
         Starts the server and handles validator tasks asynchronously.
         """
         logger.info("starting validator server")
-        if self.saved_key:
-            server = ModuleClient(
-                host=self.settings.host,
-                port=self.settings.port,
-                key=Keypair(
-                    ss58_address=self.settings.ss58_address,
-                    ss58_format=self.saved_key["ss58_format"] or 42,
-                ),
-            )
-        await server.call(fn="validation_loop", target_key=self.ss58_key, timeout=30)
+
+        app = FastAPI()
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=["*"],
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+
+        #        @app.post("/register")
+        #        def register(request: Request):
+        #            data = request.json()
+        #            self.miner_list.append(data["address"])
+        #            if not data:
+        #                raise HTTPException(status_code=400, detail="No data received")
+        #
+        #        await self.validation_loop()
+        uvicorn.run(app, host=self.host, port=self.port)
 
 
 if __name__ == "__main__":
@@ -317,4 +272,4 @@ if __name__ == "__main__":
         use_testnet=True,
     )
     validator = Validator(settings)
-    asyncio.run(validator.serve())
+    asyncio.run(validator.validation_loop())

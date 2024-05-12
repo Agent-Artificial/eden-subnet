@@ -21,7 +21,6 @@ cellium = "^0.1.0"
 substrate-interface = "^1.7.8"
 communex = "^0.1.25.1"
 python-dotenv = "^1.0.1"
-websocket-client = {git = "https://github.com/websocket-client/websocket-client.git"}
 eth-typing = "^4.2.3"
 
 [build-system]

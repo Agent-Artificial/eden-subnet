@@ -1,70 +1,83 @@
-from fastapi import FastAPI
-import uvicorn
-from communex.cli.module import ModuleServer
-from communex.key import Keypair
+from communex.module.module import Module, endpoint
+from communex.module.server import ModuleServer
+from communex.compat.key import Keypair, classic_load_key
+from communex.client import CommuneClient, Ss58Address
+from communex._common import get_node_url
 from eden_subnet.miner.config import MinerSettings, Message
-from eden_subnet.base.base import BaseModule
+from pydantic import BaseModel, Field
 from eden_subnet.miner.tiktokenizer import TikTokenizer, TokenUsage
+from loguru import logger
+import uvicorn
+import tiktoken
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import HTTPException
+
+app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+tokenizer = TikTokenizer()
+tokenizer.embedding_function = tiktoken.get_encoding("cl100k_base")
 
 
-class Miner(BaseModule):
-    """Basic miner that generates images using the Huggingface Diffusers library."""
+class Miner(BaseModel, Module):  # Make sure BaseModel is correctly integrated
+    tokenizer: TikTokenizer = TikTokenizer()
+    ss58_address: Ss58Address = Field(default_factory=None)
+    key_name: str
+    module_path: str
+    host: str
+    port: int
+    use_testnet: bool
+    call_timeout: int = 60
 
-    def __init__(self, config: MinerSettings) -> None:
-        """
-        Initializes the Miner object with the provided key and configuration settings.
-
-        Parameters:
-            key (Keypair): The keypair used for the Miner.
-            config (Optional[MinerSettings], optional): Configuration settings for the Miner. Defaults to None.
-
-        Returns:
-            None
-        """
-        super().__init__(settings=config)
-        self.tokenizer = TikTokenizer(
-            kwargs=TokenUsage(prompt=0, total=0, request=0, response=0)
+    def __init__(
+        self,
+        key_name: str,
+        module_path: str,
+        host: str,
+        port: int,
+        ss58_address: Ss58Address,
+        use_testnet: bool,
+        call_timeout: int,
+    ) -> None:
+        super().__init__(
+            key_name=key_name,
+            module_path=module_path,
+            host=host,
+            port=port,
+            ss58_address=ss58_address,
+            use_testnet=use_testnet,
+            call_timeout=call_timeout,
         )
+        self.ss58_address = Ss58Address(key_name)
 
-    def generate_embeddings(self, message: Message) -> None:
-        self.tokenizer.create_embedding(
-            text=message.content, encoding_name="cl100k_base"
-        )
+    @app.post("/generate")
+    def generate(self, message: Message):
+        try:
+            if not message.content:
+                return {"error": "No message provided"}
+            if not self.ss58_address:
+                return {"error": "No ss58_address provided"}
+            return tokenizer.embedding_function.encode(message.content)
+        except HTTPException as e:
+            raise HTTPException(status_code=500, detail={"error": str(e)}) from e
 
-    def serve(self) -> None:
-        """
-        Starts the server and runs the FastAPI app.
+    @endpoint
+    def get_model(self):
+        return {"model": self.tokenizer}
 
-        This function initializes a `ModuleServer` object with the current module, key, and a subnets whitelist
-        containing the `netuid` attribute. It then retrieves the FastAPI app from the server and runs it using
-        `uvicorn.run()`.
-
-        Parameters:
-            None
-
-        Returns:
-            None
-        """
-        server = ModuleServer(
-            module=self.dynamic_import(),  # type: ignore
-            key=Keypair(
-                ss58_address=self.settings.ss58_address,
-                public_key=self.settings.key_name,
-            ),
-            subnets_whitelist=[self.netuid],
-        )
-        app: FastAPI = server.get_fastapi_app()
-        uvicorn.run(
-            app=app, host=str(object=self.settings.host), port=int(self.settings.port)
-        )
+    @endpoint
+    def serve(self, settings: MinerSettings):
+        settings.ss58_address = settings.get_ss58_address(key_name=settings.key_name)
+        uvicorn.run(app, host=settings.host, port=settings.port)
 
 
 if __name__ == "__main__":
-    configuration = MinerSettings(
-        key_name="miner.Miner",
-        module_path="miner.Miner",
-        host="0.0.0.0",
-        port=7777,
-        use_testnet=False,
-    )
-    Miner(config=configuration).serve()
+    uvicorn.run("miner.Miner", host="0.0.0.0", port=10001)

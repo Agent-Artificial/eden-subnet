@@ -4,10 +4,10 @@ from eden_subnet.base.config import ModuleSettings
 
 
 class TokenUsage(BaseModel):
-    total: int
-    prompt: int
-    request: int
-    response: int
+    total_tokens: int = 0
+    prompt_tokens: int = 0
+    request_tokens: int = 0
+    response_tokens: int = 0
 
 
 class MinerSettings(ModuleSettings):
@@ -17,11 +17,11 @@ class MinerSettings(ModuleSettings):
 
     def __init__(
         self,
-        key_name: str = "miner.Miner",
-        module_path: str = "miner.Miner",
-        host: str = "0.0.0.0",
-        port: int = 50051,
-        use_testnet: bool = False,
+        key_name: str,
+        module_path: str,
+        host: str,
+        port: int,
+        use_testnet: bool,
     ) -> None:
         """
         Initializes the MinerSettings class with default values for the key_name and module_path.
@@ -40,6 +40,7 @@ class MinerSettings(ModuleSettings):
             port=port,
             ss58_address=self.get_ss58_address(key_name=key_name),
             use_testnet=use_testnet,
+            call_timeout=60,
         )
 
 
