@@ -1,11 +1,10 @@
-from numpy import dtype, floating, ndarray
-from numpy._typing import _64Bit
 import tiktoken
 from tiktoken import Encoding
+from numpy import floating
+from numpy._typing import _64Bit
 from typing import Any, List
-
-from eden_subnet.miner.data_models import TokenUsage
 from pydantic import BaseModel, Field
+from eden_subnet.miner.data_models import TokenUsage
 
 
 encoding = tiktoken.get_encoding
@@ -35,6 +34,7 @@ class TikTokenizer(BaseModel):
         Returns:
             None
         """
+        super().__init__()
         self.token_usage: TokenUsage = TokenUsage()
         self.historical_list: List[TokenUsage] = []
         self.embedding_function: Encoding = encoding("cl100k_base")
@@ -96,8 +96,10 @@ class TikTokenizer(BaseModel):
         Returns:
             int: The number of tokens in the input string.
         """
-        encoding: tiktoken.Encoding = tiktoken.get_encoding(encoding_name=encoding_name)
-        return len(encoding.encode(text=string))
+        embedding_array: tiktoken.Encoding = tiktoken.get_encoding(
+            encoding_name=encoding_name
+        )
+        return len(embedding_array.encode(text=string))
 
     def cosine_similarity(
         self, embedding1: List[int], embedding2: List[int]

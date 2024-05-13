@@ -10,6 +10,22 @@ class ValidatorSettings(ModuleSettings):
         port: int,
         use_testnet: bool = False,
     ) -> None:
+        """
+        Initializes a new instance of the class with the given parameters.
+
+        :param key_name: The name of the key.
+        :type key_name: str
+        :param module_path: The path of the module.
+        :type module_path: str
+        :param host: The host.
+        :type host: str
+        :param port: The port.
+        :type port: int
+        :param use_testnet: Whether to use the testnet. Defaults to False.
+        :type use_testnet: bool
+        :return: None
+        :rtype: None
+        """
         super().__init__(
             key_name=key_name,
             module_path=module_path,
@@ -20,6 +36,17 @@ class ValidatorSettings(ModuleSettings):
         )
 
     def get_random_int(self, min: int, max: int, number: int):
+        """
+        Generate a random integer between `min` and `max` based on the given `number`.
+
+        Parameters:
+            min (int): The minimum value of the range.
+            max (int): The maximum value of the range.
+            number (int): The number used to calculate the random integer.
+
+        Returns:
+            int: The randomly generated integer.
+        """
         return min + (max - min) * number
 
 

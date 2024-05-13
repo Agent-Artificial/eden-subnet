@@ -20,12 +20,24 @@ c_client: CommuneClient = CommuneClient(url=get_node_url(use_testnet=False))
 
 
 class Message(BaseModel):
+    """
+    A class representing a message.
+
+    Explanation:
+    This class defines a data model for a message with attributes 'content' of type str and 'role' of type str.
+    """
+
     content: str
     role: str
 
 
 class BaseModule(Module):
-    """Base validator class to inherit."""
+    """
+    A class representing a base module.
+
+    Explanation:
+    This class extends Module and includes attributes related to module settings, miner lists, keys, and network addresses. It provides methods for dynamic import, extracting addresses from strings, retrieving netuids, and getting IP ports from module addresses.
+    """
 
     settings: ModuleSettings
     miner_list: List[Tuple[str, Ss58Address]]
@@ -35,6 +47,13 @@ class BaseModule(Module):
     netuid: int = SUBNET_NETUID
 
     class Config:
+        """
+        A configuration class.
+
+        Explanation:
+        This class defines configuration settings with 'arbitrary_types_allowed' set to True and 'extra' set to 'ignore'.
+        """
+
         arbitrary_types_allowed = True
         extra = "ignore"
 
@@ -46,6 +65,19 @@ class BaseModule(Module):
         host: str,
         port: str,
     ) -> None:
+        """
+        Initializes the class with the provided settings and parameters.
+
+        Parameters:
+            settings (ModuleSettings): The settings object containing module settings.
+            key_name (str): The name of the key.
+            module_path (str): The path of the module.
+            host (str): The host value.
+            port (str): The port value.
+
+        Returns:
+            None
+        """
         super().__init__(
             key_name=settings.key_name or key_name,
             module_path=settings.module_path or module_path,
@@ -54,6 +86,12 @@ class BaseModule(Module):
         )
 
     def dynamic_import(self) -> Module:
+        """
+        Imports and dynamically retrieves a module based on the provided module path.
+
+        Returns:
+            Module: The imported module.
+        """
         module_name, class_name = self.module_path.rsplit(sep=".", maxsplit=1)
         try:
             module: Module = import_module(name=f"eden_subnet.miner.{module_name}")  # type: ignore
@@ -63,6 +101,16 @@ class BaseModule(Module):
 
     @staticmethod
     def extract_address(string: str) -> re.Match[str] | None:
+        """
+        Extracts an address from a given string.
+
+        Parameters:
+            string (str): The string from which to extract the address.
+
+        Returns:
+            re.Match[str] | None: A match object containing the extracted address if found,
+            otherwise None.
+        """
         try:
             return re.search(pattern=IP_REGEX, string=string)
         except Exception as e:
@@ -71,6 +119,19 @@ class BaseModule(Module):
 
     @staticmethod
     def get_netuid(client: CommuneClient, subnet_name: str = "Eden") -> int:
+        """
+        Retrieves the netuid associated with a given subnet name from the provided CommuneClient.
+
+        Parameters:
+            client (CommuneClient): The commune client object.
+            subnet_name (str, optional): The name of the subnet to retrieve the netuid for. Defaults to "Eden".
+
+        Returns:
+            int: The netuid associated with the provided subnet name.
+
+        Raises:
+            ValueError: If the subnet name is not found in the subnets queried from the client.
+        """
         subnets: dict[int, str] = client.query_map_subnet_names()
         for netuid, name in subnets.items():
             if name == subnet_name:
@@ -80,6 +141,15 @@ class BaseModule(Module):
 
     @staticmethod
     def get_ip_port(modules_addresses: Dict[int, str]) -> Dict[int, List[str]]:
+        """
+        Retrieves IP addresses and ports from a dictionary of module addresses.
+
+        Parameters:
+            modules_addresses (Dict[int, str]): A dictionary mapping module IDs to their addresses.
+
+        Returns:
+            Dict[int, List[str]]: A dictionary mapping module IDs to a list of IP addresses and ports.
+        """
         filtered_addr: dict[int, Match[str] | None] = {
             id: BaseValidator.extract_address(string=addr)
             for id, addr in modules_addresses.items()
@@ -93,6 +163,13 @@ class BaseModule(Module):
 
 
 class BaseValidator(BaseModule):
+    """
+    A class representing a base validator.
+
+    Explanation:
+    This class extends BaseModule and includes attributes related to validator settings and operations. It provides methods for making validation requests, getting miner generations, querying miners, scoring miners, and validating input.
+    """
+
     key_name: str
     module_path: str
     host: str
@@ -114,6 +191,19 @@ class BaseValidator(BaseModule):
         host: str,
         port: str,
     ) -> None:
+        """
+        Initializes the class with the provided settings and parameters.
+
+        Parameters:
+            config (ModuleSettings): The settings object containing module settings.
+            key_name (str): The name of the key.
+            module_path (str): The path of the module.
+            host (str): The host value.
+            port (str): The port value.
+
+        Returns:
+            None
+        """
         super().__init__(
             settings=config,
             key_name=config.key_name or key_name,
@@ -124,6 +214,22 @@ class BaseValidator(BaseModule):
         self.settings = config
 
     def make_validation_request(self, uid, miner_input, module_host, module_port):
+        """
+        Sends a validation request to the specified module and returns the result.
+
+        Args:
+            uid (str): The unique identifier for the validation request.
+            miner_input (Message): The input message for the validation request.
+            module_host (str): The host of the module to send the request to.
+            module_port (int): The port of the module to send the request to.
+
+        Returns:
+            dict: A dictionary containing the unique identifier as the key and the result of the validation request as the value.
+
+        Raises:
+            ValueError: If an error occurs during the validation request.
+
+        """
         try:
             url = f"http://{module_host}:{module_port}/generate"
             reponse = requests.post(url, json=miner_input.model_dump(), timeout=30)
@@ -139,6 +245,19 @@ class BaseValidator(BaseModule):
         miner_list: tuple[list[str], dict[str, int]],
         miner_input: Message,
     ):
+        """
+        Retrieves the generation of miners based on the provided miner list and input message.
+
+        Args:
+            miner_list (tuple[list[str], dict[str, int]]): A tuple containing a list of miner names and a dictionary mapping miner names to their corresponding netuids.
+            miner_input (Message): The input message for the validation request.
+
+        Returns:
+            dict: A dictionary containing the netuids as keys and the results of the validation requests as values.
+
+        Raises:
+            ValueError: If an error occurs during the validation request.
+        """
         results_dict = {}
         for miner_dict in miner_list:
             uid: str = miner_dict["netuid"]  # type: ignore
@@ -158,6 +277,15 @@ class BaseValidator(BaseModule):
         return results_dict
 
     def get_queryable_miners(self) -> dict[int, tuple[str, int]] | None:
+        """
+        Retrieves queryable miners and their corresponding information.
+
+        Returns:
+            dict[int, tuple[str, int]] | None: A dictionary with netuids as keys and tuple of address and port as values, or None if an error occurs.
+
+        Raises:
+            RuntimeError: If an error occurs during the retrieval process.
+        """
         try:
             module_addresses = c_client.query_map_address(netuid=SUBNET_NETUID)
             module_keys = c_client.query_map_key(netuid=SUBNET_NETUID)

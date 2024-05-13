@@ -1,18 +1,16 @@
-from communex.module.module import Module, endpoint
-from communex.module.server import ModuleServer
-from communex.compat.key import Keypair, classic_load_key
-from communex.client import CommuneClient, Ss58Address
-from communex._common import get_node_url
-from eden_subnet.miner.data_models import MinerSettings, Message
-from pydantic import BaseModel, Field
-from eden_subnet.miner.tiktokenizer import TikTokenizer, TokenUsage
-from loguru import logger
 import uvicorn
-import json
 import tiktoken
+
+from loguru import logger
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import HTTPException
+from pydantic import BaseModel, Field
+
+from communex.module.module import Module, endpoint
+from communex.client import Ss58Address
+from eden_subnet.miner.tiktokenizer import TikTokenizer
+from eden_subnet.miner.data_models import MinerSettings
 
 app = FastAPI()
 
@@ -33,7 +31,14 @@ class GenerateRequest(BaseModel):
     model: str
 
 
-class Miner(BaseModel, Module):  # Make sure BaseModel is correctly integrated
+class Miner(BaseModel, Module):
+    """
+    A class representing a miner.
+
+    Explanation:
+    This class combines functionality from BaseModel and Module to define a miner with attributes such as key name, module path, host, port, SS58 address, and settings for using the testnet. It provides methods for getting the model, serving the miner, and generating responses.
+    """
+
     tokenizer: TikTokenizer = TikTokenizer()
     ss58_address: Ss58Address = Field(default_factory=None)
     key_name: str
@@ -53,6 +58,21 @@ class Miner(BaseModel, Module):  # Make sure BaseModel is correctly integrated
         use_testnet: bool,
         call_timeout: int,
     ) -> None:
+        """
+        Initializes the Miner with the provided parameters.
+
+        Args:
+            key_name (str): The unique identifier for the miner.
+            module_path (str): The path to the module.
+            host (str): The host address for the miner.
+            port (int): The port number for communication.
+            ss58_address (Ss58Address): The SS58 address associated with the miner.
+            use_testnet (bool): Flag indicating whether to use the testnet.
+            call_timeout (int): The timeout duration for calls.
+
+        Returns:
+            None
+        """
         super().__init__(
             key_name=key_name,
             module_path=module_path,
@@ -66,20 +86,55 @@ class Miner(BaseModel, Module):  # Make sure BaseModel is correctly integrated
 
     @endpoint
     def get_model(self):
+        """
+        Retrieves the model associated with this instance.
+
+        Returns:
+            dict: A dictionary containing the model, with the key "model" and the value being the tokenizer object.
+        """
         return {"model": self.tokenizer}
 
     @endpoint
     def serve(self, settings: MinerSettings):
-        ss58 = settings.get_ss58_address(key_name=settings.key_name)
+        """
+        Serves the miner with the provided settings.
+
+        Args:
+            settings (MinerSettings): The settings object containing key_name, module_path, host, port, and ss58_address.
+
+        Returns:
+            None
+        """
         uvicorn.run(app, host=settings.host, port=settings.port)
 
     @endpoint
     def generate(self, request: GenerateRequest):
+        """
+        Generates something based on the provided request.
+
+        Args:
+            request (GenerateRequest): The request object containing information for generation.
+
+        Returns:
+            The result of the generation process.
+        """
         return generate(request)
 
 
 @app.post("/generate")
 def generate(request: GenerateRequest):
+    """
+    A function that generates something based on the provided request.
+
+    Args:
+        request (GenerateRequest): The request object containing information for generation.
+
+    Returns:
+        dict: A dictionary containing the generated choices.
+
+    Raises:
+        HTTPException: If an HTTP exception occurs during the generation process.
+    """
     try:
         dict_request = request.model_dump()
         content = dict_request["messages"][0]["content"]

@@ -37,23 +37,49 @@ VALI_KEY_FILEPATH = "/home/ubuntu/.commune/key/eden.Validator_1.json"
 
 
 class Ss58Address(BaseModel):
+    """
+    A class representing an SS58 address.
+
+    Explanation:
+    This class defines a data model for an SS58 address with a single attribute 'address' of type str.
+    """
+
     address: str  # Example field, adjust as needed
 
 
 class ConfigDict(BaseModel):
+    """
+    A class representing a configuration dictionary.
+
+    Explanation:
+    This class defines a data model for a configuration dictionary with a single attribute 'arbitrary_types_allowed' that specifies whether arbitrary types are allowed by default.
+    """
+
     arbitrary_types_allowed: bool = True
 
 
 class ValidatorSettings(BaseModel):
+    """
+    A class representing validator settings.
+
+    Explanation:
+    This class defines a data model for validator settings including attributes like key name, module path, host, and port. Additional settings can be added as needed.
+    """
+
     key_name: str
     module_path: str
     host: str
     port: int
-    # Add other settings as needed
 
 
 class BaseValidator(BaseModel):
-    # Assuming BaseValidator needs these four properties
+    """
+    A class representing a base validator.
+
+    Explanation:
+    This class serves as a base model for validators and includes attributes such as key name, module path, host, and port.
+    """
+
     key_name: str
     module_path: str
     host: str
@@ -61,6 +87,13 @@ class BaseValidator(BaseModel):
 
 
 class Validator(BaseValidator):
+    """
+    A class representing a Validator.
+
+    Explanation:
+    This class extends BaseValidator and includes various attributes related to validator settings and operations. It provides methods for making requests, retrieving miners, getting keys, validating input, setting weights, running a validation loop, and serving the validator asynchronously.
+    """
+
     key_name: str = Field(default="")
     module_path: str = Field(default="")
     host: str = Field(default="")
@@ -76,7 +109,18 @@ class Validator(BaseValidator):
     settings: ValidatorSettings = Field(default_factory=None)
 
     def __init__(self, settings: ValidatorSettings) -> None:
-        # Call the initializer of BaseValidator with required positional arguments
+        """
+        Initializes the Validator object with the provided settings.
+
+        Explanation:
+        This function initializes the Validator object using the settings provided, including key name, module path, host, and port. It also retrieves and stores the saved key information and logs the initialization details.
+
+        Args:
+        - settings (ValidatorSettings): The settings object containing validator configuration.
+
+        Returns:
+        - None
+        """
         super().__init__(
             key_name=settings.key_name,
             module_path=settings.module_path,
@@ -92,6 +136,16 @@ class Validator(BaseValidator):
 
     @logger.catch
     async def make_request(self, messages: List[Message], input_url: str = ""):
+        """
+        Makes a request using the provided messages and input URL. Returns the content of the first choice message from the response.
+
+        Args:
+        - messages (List[Message]): List of messages to be sent in the request.
+        - input_url (str): The URL to send the request to. If not provided, uses the default URL from the environment variables.
+
+        Returns:
+        - str: The content of the first choice message from the response.
+        """
         try:
             url = input_url or os.getenv("AGENTARTIFICIAL_URL")
             payload = json.dumps(
@@ -115,6 +169,15 @@ class Validator(BaseValidator):
             logger.error(f"Error making request: {e}")
 
     def get_miner_by_netuid(self, miner_id: int):
+        """
+        Retrieves the miner's ss58 address based on the provided miner ID.
+
+        Parameters:
+            miner_id (int): The ID of the miner.
+
+        Returns:
+            str: The ss58 address of the miner if found, None otherwise.
+        """
         logger.info("getting miner by netuid")
         miners = self.get_queryable_miners()
         for miner, ss58 in miners:  # type: ignore
@@ -123,6 +186,18 @@ class Validator(BaseValidator):
             return
 
     def get_key(self, key_name: str):
+        """
+        Retrieves the validator key from the local storage based on the provided key name.
+
+        Parameters:
+            key_name (str): The name of the key to retrieve.
+
+        Returns:
+            str: The validator key if found, None otherwise.
+
+        Raises:
+            ValueError: If the key is not found in the local storage.
+        """
         logger.info("getting validator key from local storage")
         try:
             key_dir = Path("~/.commune/key").expanduser().resolve()
@@ -135,6 +210,25 @@ class Validator(BaseValidator):
             logger.error(f"Key not found: {e}")
 
     async def get_sample_result(self):
+        """
+        Asynchronously retrieves a sample result from the AgentArtificial service.
+
+        This function selects a random topic from the TOPICS list and creates a Message object
+        with the topic as the content and role set to "user". It then sends a request to the
+        AgentArtificial service with the topic message and retrieves the sample result. The
+        sample result is logged as a debug message.
+
+        The function then creates a Message object with the sample result as the content and
+        role set to "user". The sample result is encoded using the embedding function from the
+        tokenizer and returned along with the prompt Message object.
+
+        Returns:
+            Tuple[List[float], Message]: A tuple containing the encoded sample result and the
+            prompt Message object.
+
+        Raises:
+            None
+        """
         logger.info("getting sample result")
         topic = random.choice(TOPICS)
         logger.debug(f"sample topic:\n{topic}")
@@ -152,6 +246,18 @@ class Validator(BaseValidator):
         return tokenizer.embedding_function.encode(str(sample_result)), prompt
 
     def validate_input(self, embedding1, embedding2):
+        """
+        Calculate the cosine similarity between two embeddings.
+
+        Args:
+            embedding1 (List[int]): The first embedding.
+            embedding2 (List[int]): The second embedding.
+
+        Returns:
+            float: The cosine similarity between the two embeddings.
+
+        This function calculates the cosine similarity between two embeddings using the `tokenizer.cosine_similarity` method. It takes in two embeddings, `embedding1` and `embedding2`, as input and returns the cosine similarity between them. The cosine similarity is a measure of similarity between two vectors that is defined as the cosine of the angle between them. The angle is measured in radians and the cosine is a value between -1 and 1. A cosine similarity of 1 indicates that the two vectors are identical, while a cosine similarity of -1 indicates that the two vectors are opposite. The function logs the similarity result using the `logger.debug` method and returns the similarity value.
+        """
         logger.info("\nevaluating sample similarity")
         result = tokenizer.cosine_similarity(
             embedding1=embedding1, embedding2=embedding2
@@ -160,6 +266,18 @@ class Validator(BaseValidator):
         return result
 
     def set_weights(self, uids, weights):
+        """
+        Set weights for validators.
+
+        This function sets weights for validators using the provided `uids` and `weights` parameters. It reads the key information from the `VALI_KEY_FILEPATH` file, parses it, and extracts the `private_key` and `ss58_address` values. It then creates a `Keypair` object using the extracted values. Finally, it calls the `vote` method of the `c_client` object, passing in the `key`, `uids`, `weights`, and `netuid` parameters.
+
+        Parameters:
+            uids (List[int]): A list of validator IDs.
+            weights (List[float]): A list of weights for the validators.
+
+        Returns:
+            None
+        """
         with open(VALI_KEY_FILEPATH, "r", encoding="utf-8") as f:
             key = json.loads(f.read())["data"]
 
@@ -171,39 +289,60 @@ class Validator(BaseValidator):
         c_client.vote(key, uids, weights, netuid=10)
 
     async def validation_loop(self):
+        """
+        Asynchronously runs a validation loop that continuously checks the status of miners and their responses.
+
+        This function does not take any parameters.
+
+        The validation loop runs indefinitely and performs the following steps:
+        1. Retrieves a sample result from the `get_sample_result` method.
+        2. Extracts the length of the sample embedding and initializes a zero score list.
+        3. Retrieves the `netuid` and address information from each miner in the `miner_list`.
+        4. Makes a request to each miner to generate a response using the `make_request` method.
+        5. Validates the input using the `validate_input` method and stores the scores in the `score_dict`.
+        6. Adjusts the scores using the `threshold_sigmoid_reward_distribution` function.
+        7. Calculates the total score and weighted scores.
+        8. Sets the weights for each miner using the `set_weights` method.
+
+        This function does not return any values.
+        """
         logger.info("\nStarting validation loop")
+        time.sleep(60)
+        ss58address = ""
         while True:
-            # time.sleep(60)
-            ss58address = ""
+            logger.info("\nGetting sample to compare...")
             sample_embedding, message = await self.get_sample_result()
             length = len(sample_embedding)
-            zero_score = [0.0001 for _ in range(length)]
+            zero_score = [0.00000000000000001 for _ in range(length)]
             score_dict = {}
             msg = message
+            logger.info("\nQuerying miners...")
             try:
                 self.miner_list = self.get_queryable_miners()  # type: ignore
             except Exception as e:
                 logger.error(f"\nMiner list not found: {e}")
 
+            logger.debug(f"\nChecking miners:\n {self.checking_list}")
             for miner_info in self.miner_list:
                 print(miner_info)
-                uid = miner_info["netuid"]
-                address_info = miner_info["address"]
+                uid = miner_info["netuid"]  # type: ignore
+                address_info = miner_info["address"]  # type: ignore
                 miner_host = address_info[0]
                 miner_port = address_info[1]
                 miner_responses = {}
-                logger.debug(f"\nChecking miners:\n {self.checking_list}")
+
                 try:
-                    logger.debug(f"\nMiner: {uid} - {miner_host}:{miner_port}")
+                    logger.info(f"\nMiner: {uid} - {miner_host}:{miner_port}")
                     miner_response = await self.make_request(
                         messages=[msg],
                         input_url=f"http://{miner_host}:{miner_port}/generate",
                     )
                     miner_responses[uid] = miner_response
                     logger.debug(f"\nMiner responses:\n {miner_responses}")
-                    miner_responses[uid] = zero_score
+
                 except Exception as e:
-                    logger.error(f"\nMiner not found: {e}")
+                    logger.debug(f"\nMiner not found: {e}")
+                    miner_responses[uid] = zero_score
             for uid, miner_response in miner_responses.items():
                 try:
                     score = self.validate_input(
@@ -246,7 +385,16 @@ class Validator(BaseValidator):
 
     async def serve(self) -> None:
         """
-        Starts the server and handles validator tasks asynchronously.
+        Starts the validator server and handles validator tasks asynchronously.
+
+        This function initializes a FastAPI application and adds CORS middleware to allow cross-origin requests.
+        It then runs the application using the Uvicorn server.
+
+        Parameters:
+            self (Validator): The instance of the Validator class.
+
+        Returns:
+            None: This function does not return anything.
         """
         logger.info("starting validator server")
 
@@ -258,13 +406,4 @@ class Validator(BaseValidator):
             allow_methods=["*"],
             allow_headers=["*"],
         )
-
-        #        @app.post("/register")
-        #        def register(request: Request):
-        #            data = request.json()
-        #            self.miner_list.append(data["address"])
-        #            if not data:
-        #                raise HTTPException(status_code=400, detail="No data received")
-        #
-        #        await self.validation_loop()
         uvicorn.run(app, host=self.host, port=self.port)

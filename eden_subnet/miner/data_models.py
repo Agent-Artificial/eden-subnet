@@ -4,6 +4,8 @@ from eden_subnet.base.data_models import ModuleSettings
 
 
 class TokenUsage(BaseModel):
+    """Token usage model"""
+
     total_tokens: int = 0
     prompt_tokens: int = 0
     request_tokens: int = 0

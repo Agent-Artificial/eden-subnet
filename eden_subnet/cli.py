@@ -1,12 +1,9 @@
 import asyncio
 import typer
-from eden_subnet.validator.validator import Validator
-from eden_subnet.miner.miner import Miner
-from eden_subnet.validator.data_models import ValidatorSettings
-from communex.compat.key import Ss58Address
+from eden_subnet.validator.validator import Validator, ValidatorSettings
+from eden_subnet.miner.miner import Miner, MinerSettings
 from typing import Annotated
 from dotenv import load_dotenv
-import importlib
 
 
 load_dotenv()
@@ -16,7 +13,7 @@ app = typer.Typer()
 serve_help = """
 Commands:
     eden-validator:
-        Serves the validator module. 
+        Serves the validator moduel.ClassNames
         Args: 
             key_name: Name of your key that will stake the validator. Should be in the  
                 format of <file_name>.<class_name>. 
@@ -37,17 +34,27 @@ def serve_validator(
     ] = "validator.Validator",
     host: Annotated[str, typer.Argument(help=serve_help)] = "0.0.0.0",
     port: Annotated[int, typer.Argument(help=serve_help)] = 50050,
-    use_testnet: Annotated[bool, typer.Option] = True,
 ):
+    """
+    Serves a validator module.
+
+    Args:
+        key_name (str): The name of the key that will stake the validator. Should be in the format of <file_name>.<class_name>. Example: "validator.Validator"
+        host (str): The listening ports of the validator. Defaults to "0.0.0.0".
+        port (int): The open port on the system running the validator. Defaults to 50050.
+
+    Returns:
+        None
+    """
     settings = ValidatorSettings(
         key_name=key_name,
         module_path=key_name,
         host=host,
         port=port,
-        use_testnet=use_testnet,
     )
-    validator = Validator_1(settings)
-    asyncio.run()
+
+    validator = Validator(settings)
+    asyncio.run(validator.validation_loop())
 
 
 @app.command("serve-miner")
@@ -60,17 +67,28 @@ def serve_miner(
     ],
     host: Annotated[str, typer.Argument(help=serve_help)],
     port: Annotated[int, typer.Argument(help=serve_help)],
-    ss58_address: Annotated[str, typer.Argument(help=serve_help)],
-    use_testnet: Annotated[bool, typer.Option] = False,
-    call_timeout: Annotated[int, typer.Option] = 60,
 ):
-    miner = Miner(
+    """
+    Serves a miner module.
+
+    Args:
+        key_name (str): The name of the key that will stake the miner. Should be in the format of <file_name>.<class_name>.
+            Example: "validator.Validator"
+        host (str): The listening ports of the miner. Defaults to "0.0.0.0".
+        port (int): The open port on the system running the miner. Defaults to 50050.
+        ss58_address (str): The SS58 address of the miner.
+        use_testnet (bool, optional): Whether to use the testnet. Defaults to False.
+        call_timeout (int, optional): The timeout for calls. Defaults to 60.
+
+    Returns:
+        None
+    """
+    settings = MinerSettings(
         key_name=key_name,
         module_path=key_name,
         host=host,
         port=port,
-        ss58_address=Ss58Address(ss58_address),
-        use_testnet=use_testnet,
-        call_timeout=call_timeout,
     )
-    miner.serve()
+
+    miner = Miner(**settings.model_dump())
+    miner.serve(settings)
