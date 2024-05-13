@@ -1,10 +1,20 @@
 # Eden Subnet 10
 
-## Ebbeddings
+## Introduction
 
-We are starting off our subnet with embedding miners. They quite simply use embedding functions to produce embeddings of tokens for storage in vectorstores. Phase two of our subnet will be to use those embedding miners to begin a distributed vecotor store. Our plan is to have knowledge stores in different domains referenced on chain to miners providing the data as a service to LLMs. 
+The Eden Subnet simplifies the way machines learn and manage data through its Commune Subnet, which centers around a Vector Store. Think of it as creating memories for AI: it takes textual content—such as PDFs, markdown, and text files—transforms them into embeddings, and stores them for AI retrieval. This is part of a process known as Retrieval-Augmented Generation (RAG), crucial for enhancing AI interactions.
 
-## Miner
+Beyond this fundamental operation, the Vector Store serves as a crucial repository for embeddings—dense numerical representations of text tokens produced by machine learning algorithms. As a key component of a broader AI ecosystem, it significantly improves the accessibility and utility of data for large language models (LLMs) and other AI systems. The store is populated and maintained by dedicated nodes called "embedding miners," who are instrumental in ensuring the availability of high-quality, semantically rich embeddings. These miners, along with validators, play a vital role in generating and refining these embeddings to power a variety of AI-driven applications and innovations.
+
+The strength of this subnet lies in its ability to enhance AI capabilities through Retrieval-Augmented Generation (RAG). By integrating this mechanism, AI agents, chatbots, and tools can expand their understanding and discuss topics outside their inherent knowledge base, simply by referencing materials like PDFs. This approach is computationally efficient compared to the alternatives of training new models or manually incorporating extensive documents into a model’s context window.
+
+Vector stores play a crucial role in augmenting the abilities and knowledge base of existing AI models. We incentivize miners to deliver high-quality embedding services, rewarding them based on the excellence of their contributions. This not only enhances the overall quality of AI interactions but also creates a win-win situation for both miners and AI developers.
+
+## Future Work
+
+We are initiating our subnet by deploying simple embedding miners. These miners utilize embedding functions to generate token embeddings, which are then stored in vectorstores. The second phase of our project involves leveraging these embedding miners to establish a distributed vector store. Our strategy includes creating domain-specific knowledge stores, which will be indexed on the blockchain. These stores will provide data as a service to large language models (LLMs). Additionally, we are exploring the integration of knowledge graphs and the storage of synthetic data. Potential collaborations are being considered, including one with the Synthia subnet, to enhance our capabilities in synthetic data handling.
+
+## Embedding Miner
 
 Base miner is in the [miner](eden_subnet/miner/miner.py) folder. Copy the class `Miner` and pass it the `MinerSettings` class to deploy your own version. The repo references the position of the miner class and the file it resides in through a naming convention of the miner. Use <FILE_NAME>.<CLASS_NAME> for both the name of the key you are staking with and the file/class name of the code to your miner. 
 To launch your miner run 
@@ -47,7 +57,7 @@ If you have any questions or concerns please contact coolrazor or bakobiibizo on
 
 ## Contributions
 
-This was built by [Eden](https://twitter.com/project_eden_ai) in parternship with [Agent Artificial](https://agentartificial.com)
+This was built by [Eden](https://twitter.com/project_eden_ai) in partnernship with [Agent Artificial](https://agentartificial.com)
 
 It is a subnet of [Commune](https://github.com/commune-ai/commune), an open source decentralized blockchain. The repo is based on the [Communex Synthia repo](https://github.com/agicommies/synthia). Special thanks to the team over at [Communex](https://github.com/agicommies) for their on going assistance in puzzling all this out. 
 
