@@ -3,11 +3,12 @@ from communex.module.server import ModuleServer
 from communex.compat.key import Keypair, classic_load_key
 from communex.client import CommuneClient, Ss58Address
 from communex._common import get_node_url
-from eden_subnet.miner.config import MinerSettings, Message
+from eden_subnet.miner.data_models import MinerSettings, Message
 from pydantic import BaseModel, Field
 from eden_subnet.miner.tiktokenizer import TikTokenizer, TokenUsage
 from loguru import logger
 import uvicorn
+import json
 import tiktoken
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -25,6 +26,11 @@ app.add_middleware(
 
 tokenizer = TikTokenizer()
 tokenizer.embedding_function = tiktoken.get_encoding("cl100k_base")
+
+
+class GenerateRequest(BaseModel):
+    messages: list
+    model: str
 
 
 class Miner(BaseModel, Module):  # Make sure BaseModel is correctly integrated
@@ -58,25 +64,39 @@ class Miner(BaseModel, Module):  # Make sure BaseModel is correctly integrated
         )
         self.ss58_address = Ss58Address(key_name)
 
-    @app.post("/generate")
-    def generate(self, message: Message):
-        try:
-            if not message.content:
-                return {"error": "No message provided"}
-            if not self.ss58_address:
-                return {"error": "No ss58_address provided"}
-            return tokenizer.embedding_function.encode(message.content)
-        except HTTPException as e:
-            raise HTTPException(status_code=500, detail={"error": str(e)}) from e
-
     @endpoint
     def get_model(self):
         return {"model": self.tokenizer}
 
     @endpoint
     def serve(self, settings: MinerSettings):
-        settings.ss58_address = settings.get_ss58_address(key_name=settings.key_name)
+        ss58 = settings.get_ss58_address(key_name=settings.key_name)
         uvicorn.run(app, host=settings.host, port=settings.port)
+
+    @endpoint
+    def generate(self, request: GenerateRequest):
+        return generate(request)
+
+
+@app.post("/generate")
+def generate(request: GenerateRequest):
+    try:
+        dict_request = request.model_dump()
+        content = dict_request["messages"][0]["content"]
+        result = tokenizer.embedding_function.encode(content)
+        return {
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": result,
+                    },
+                }
+            ]
+        }
+    except HTTPException as e:
+        raise HTTPException(status_code=500, detail={"error": str(e)}) from e
 
 
 if __name__ == "__main__":

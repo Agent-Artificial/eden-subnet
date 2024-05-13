@@ -2,7 +2,7 @@ import asyncio
 import typer
 from eden_subnet.validator.validator import Validator
 from eden_subnet.miner.miner import Miner
-from eden_subnet.validator.config import ValidatorSettings
+from eden_subnet.validator.data_models import ValidatorSettings
 from communex.compat.key import Ss58Address
 from typing import Annotated
 from dotenv import load_dotenv
@@ -46,8 +46,8 @@ def serve_validator(
         port=port,
         use_testnet=use_testnet,
     )
-    validator = Validator(settings)
-    asyncio.run(validator.validation_loop())
+    validator = Validator_1(settings)
+    asyncio.run()
 
 
 @app.command("serve-miner")

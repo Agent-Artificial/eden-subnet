@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from typing import Literal
-from eden_subnet.base.config import ModuleSettings
+from eden_subnet.base.data_models import ModuleSettings
 
 
 class TokenUsage(BaseModel):
@@ -21,7 +21,6 @@ class MinerSettings(ModuleSettings):
         module_path: str,
         host: str,
         port: int,
-        use_testnet: bool,
     ) -> None:
         """
         Initializes the MinerSettings class with default values for the key_name and module_path.
@@ -38,9 +37,6 @@ class MinerSettings(ModuleSettings):
             module_path=module_path,
             host=host,
             port=port,
-            ss58_address=self.get_ss58_address(key_name=key_name),
-            use_testnet=use_testnet,
-            call_timeout=60,
         )
 
 

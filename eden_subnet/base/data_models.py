@@ -1,8 +1,7 @@
 import re
 import types
-from re import Match
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List
 from communex.compat.key import Ss58Address, local_key_addresses
 
 SUBNET_NETUID = 10
@@ -17,9 +16,6 @@ class Module(BaseModel):
     module_path: str
     host: str
     port: int
-    ss58_address: Ss58Address
-    use_testnet: bool
-    call_timeout: int = 60
 
 
 ModuleType = types.ModuleType
@@ -32,15 +28,10 @@ class ModuleSettings(BaseModel):
     key_name: str
     host: str
     port: int
-    ss58_address: Ss58Address
-    call_timeout: int
-    use_testnet: bool
 
     class Config:
         arbitrary_types_allowed = True
-        env_prefix: str = "EDEN"
         env_file: str = ".env"
-        extra: str = "ignore"
 
     def get_ss58_address(self, key_name: str) -> Ss58Address:
         """
@@ -60,8 +51,8 @@ class ModuleSettings(BaseModel):
             raise ValueError("No key_name provided")
         try:
             local_keys[key_name]
-        except KeyError:
-            raise ValueError(f"Key {key_name} not found in local keys")
+        except KeyError as e:
+            raise ValueError(f"Key {key_name} not found in local keys") from e
         return local_keys[key_name]
 
 

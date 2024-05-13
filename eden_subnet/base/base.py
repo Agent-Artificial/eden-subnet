@@ -1,17 +1,15 @@
-import asyncio
-import base64
 import re
 
 import requests
 from importlib import import_module
 from re import Match
-from pydantic import Field, BaseModel
+from pydantic import BaseModel
+from communex.compat.key import Ss58Address
 from typing import List, Optional, Tuple, Dict
 from loguru import logger
 from communex.client import CommuneClient
 from communex._common import get_node_url
-from communex.types import Ss58Address
-from eden_subnet.base.config import (
+from eden_subnet.base.data_models import (
     ModuleSettings,
     Module,
     SUBNET_NETUID,
@@ -30,7 +28,10 @@ class BaseModule(Module):
     """Base validator class to inherit."""
 
     settings: ModuleSettings
-
+    miner_list: List[Tuple[str, Ss58Address]]
+    checked_list: List[Tuple[str, Ss58Address]]
+    saved_key: Optional[Dict[str, str]]
+    checking_list: List[Tuple[str, Ss58Address]]
     netuid: int = SUBNET_NETUID
 
     class Config:
@@ -39,26 +40,21 @@ class BaseModule(Module):
 
     def __init__(
         self,
+        settings: ModuleSettings,
         key_name: str,
         module_path: str,
         host: str,
-        port: int,
-        ss58_address: str,
-        use_testnet: bool,
-        call_timeout: int = 60,
+        port: str,
     ) -> None:
-        settings = {
-            "key_name": key_name,
-            "module_path": module_path,
-            "host": host,
-            "port": port,
-            "ss58_address": ss58_address,
-            "use_testnet": use_testnet,
-            "call_timeout": call_timeout,
-        }
+        super().__init__(
+            key_name=settings.key_name or key_name,
+            module_path=settings.module_path or module_path,
+            host=settings.host or host,
+            port=settings.port or int(port),
+        )
 
     def dynamic_import(self) -> Module:
-        module_name, class_name = self.settings.module_path.rsplit(sep=".", maxsplit=1)
+        module_name, class_name = self.module_path.rsplit(sep=".", maxsplit=1)
         try:
             module: Module = import_module(name=f"eden_subnet.miner.{module_name}")  # type: ignore
         except ImportError as e:
@@ -67,7 +63,11 @@ class BaseModule(Module):
 
     @staticmethod
     def extract_address(string: str) -> re.Match[str] | None:
-        return re.search(pattern=IP_REGEX, string=string)
+        try:
+            return re.search(pattern=IP_REGEX, string=string)
+        except Exception as e:
+            logger.error(f"Error extracting address: {e}")
+        return None
 
     @staticmethod
     def get_netuid(client: CommuneClient, subnet_name: str = "Eden") -> int:
@@ -93,16 +93,34 @@ class BaseModule(Module):
 
 
 class BaseValidator(BaseModule):
-    key_name: str = Field(default="")
-    module_path: str = Field(default="")
-    host: str = Field(default="")
-    port: int = Field(default=0)
-    ss58_address: str = Field(default="")
-    use_testnet: bool = Field(default=False)
-    call_timeout: int = Field(default=60)
+    key_name: str
+    module_path: str
+    host: str
+    port: int
+    settings: ModuleSettings
+    __pydantic_fields_set__ = {
+        "key_name",
+        "module_path",
+        "host",
+        "port",
+        "settings",
+    }
 
-    def __init__(self, config: ModuleSettings) -> None:
-        super().__init__(**config.model_dump())
+    def __init__(
+        self,
+        config: ModuleSettings,
+        key_name: str,
+        module_path: str,
+        host: str,
+        port: str,
+    ) -> None:
+        super().__init__(
+            settings=config,
+            key_name=config.key_name or key_name,
+            module_path=config.module_path or module_path,
+            host=config.host or host,
+            port=str(config.port) or port,
+        )
         self.settings = config
 
     def make_validation_request(self, uid, miner_input, module_host, module_port):
@@ -155,7 +173,9 @@ class BaseValidator(BaseModule):
                 module_info = {}
                 if module_id == 0:  # skip master
                     continue
-                if ss58_address == self.settings.ss58_address:  # skip yourself
+                if ss58_address == self.settings.get_ss58_address(
+                    key_name=self.key_name
+                ):  # skip yourself
                     continue
                 if ss58_addr := modules_filtered_address.get(module_id):
                     module_info["netuid"] = module_id

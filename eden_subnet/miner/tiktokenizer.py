@@ -4,7 +4,7 @@ import tiktoken
 from tiktoken import Encoding
 from typing import Any, List
 
-from eden_subnet.miner.config import TokenUsage
+from eden_subnet.miner.data_models import TokenUsage
 from pydantic import BaseModel, Field
 
 

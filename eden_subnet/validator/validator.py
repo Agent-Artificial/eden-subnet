@@ -10,22 +10,18 @@ from requests import Request
 from pathlib import Path
 from loguru import logger
 from dotenv import load_dotenv
-from typing import Any, Literal, List, Union
+from typing import Any, Literal, List, Union, Tuple, Dict
 from numpy import floating
 from numpy._typing import _64Bit
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.exceptions import HTTPException
-from cellium.client import CelliumClient
-from communex.module.client import ModuleClient
-from communex.types import Ss58Address
 from communex.compat.key import Keypair
 from communex.client import CommuneClient
 from communex._common import get_node_url
-from pydantic import ConfigDict, Field
-from eden_subnet.base.base import BaseValidator, Message
-from eden_subnet.miner.config import Message
-from eden_subnet.validator.config import ValidatorSettings, TOPICS
+from pydantic import Field, BaseModel
+from eden_subnet.base.base import Message
+from eden_subnet.miner.data_models import Message
+from eden_subnet.validator.data_models import TOPICS
 from eden_subnet.miner.tiktokenizer import TikTokenizer
 from eden_subnet.validator.sigmoid import threshold_sigmoid_reward_distribution
 from dotenv import load_dotenv
@@ -37,63 +33,86 @@ c_client = CommuneClient(get_node_url())
 
 tokenizer = TikTokenizer()
 
+VALI_KEY_FILEPATH = "/home/ubuntu/.commune/key/eden.Validator_1.json"
+
+
+class Ss58Address(BaseModel):
+    address: str  # Example field, adjust as needed
+
+
+class ConfigDict(BaseModel):
+    arbitrary_types_allowed: bool = True
+
+
+class ValidatorSettings(BaseModel):
+    key_name: str
+    module_path: str
+    host: str
+    port: int
+    # Add other settings as needed
+
+
+class BaseValidator(BaseModel):
+    # Assuming BaseValidator needs these four properties
+    key_name: str
+    module_path: str
+    host: str
+    port: int
+
 
 class Validator(BaseValidator):
     key_name: str = Field(default="")
     module_path: str = Field(default="")
     host: str = Field(default="")
     port: int = Field(default=0)
-    miner_list: list[tuple[str, Ss58Address]] = Field(default=[])
-    checked_list: list[tuple[str, Ss58Address]] = Field(default=[])
-    saved_key: Union[dict[Any, Any], None] = Field(default=None)
-    checking_list: list[tuple[str, Ss58Address]] = Field(default=[])
+    miner_list: List[Tuple[str, Ss58Address]] = Field(default_factory=list)
+    checked_list: List[Tuple[str, Ss58Address]] = Field(default_factory=list)
+    saved_key: Union[Dict[Any, Any], None] = Field(default=None)
+    checking_list: List[Tuple[str, Ss58Address]] = Field(default_factory=list)
     ss58_address: Ss58Address = Field(default_factory=None)
-    model_config: ConfigDict = ConfigDict(arbitrary_types_allowed=True)
-    settings: ValidatorSettings = Field(default_factory=ValidatorSettings)
-    __pydantic_fields_set__ = {
-        "key_name",
-        "module_path",
-        "host",
-        "port",
-        "miner_list",
-        "checked_list",
-        "saved_key",
-        "checking_list",
-        "settings",
-    }
+    model_config: ConfigDict = Field(
+        default_factory=lambda: ConfigDict(arbitrary_types_allowed=True)
+    )
+    settings: ValidatorSettings = Field(default_factory=None)
 
     def __init__(self, settings: ValidatorSettings) -> None:
-        logger.info(f"Initializing validator with settings: {settings.model_dump()}")
-        super().__init__(config=settings)
-        self.key_name = settings.key_name
-        self.module_path = settings.module_path
-        self.host = settings.host
-        self.port = settings.port
-        self.saved_key = json.loads(self.get_key(str(self.key_name)))  # type: ignore
-        self.ss58_address = Ss58Address(self.settings.key_name)
-        self.miner_list = []
-        self.checked_list = []
-        self.checking_list = []
-
-    async def make_request(self, message: Message) -> str:
-        import requests
-        import json
-
-        url = str(os.getenv("AGENTARTIFICIAL_URL"))
-        payload = json.dumps(
-            {
-                "messages": [message.model_dump()],
-                "model": str(os.getenv("AGENTARTIFICIAL_MODEL")),
-            }
+        # Call the initializer of BaseValidator with required positional arguments
+        super().__init__(
+            key_name=settings.key_name,
+            module_path=settings.module_path,
+            host=settings.host,
+            port=settings.port,
         )
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": str(os.getenv("AGENTARTIFICIAL_API_KEY")),
-        }
 
-        response = requests.request("POST", url, headers=headers, data=payload)
+        self.settings = settings
+        self.saved_key = (
+            json.loads(str(self.get_key(self.key_name))) if self.key_name else None
+        )
+        logger.info(f"Initializing validator with settings: {settings.model_dump()}")
 
-        return response.json()["choices"][0]["message"]["content"]
+    @logger.catch
+    async def make_request(self, messages: List[Message], input_url: str = ""):
+        try:
+            url = input_url or os.getenv("AGENTARTIFICIAL_URL")
+            payload = json.dumps(
+                {
+                    "messages": [message.model_dump() for message in messages],
+                    "model": str(os.getenv("AGENTARTIFICIAL_MODEL")),
+                }
+            )
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": str(os.getenv("AGENTARTIFICIAL_API_KEY")),
+            }
+
+            response = requests.request(
+                method="POST", url=str(url), headers=headers, data=payload, timeout=30
+            )
+            print(response.json())
+
+            return response.json()["choices"][0]["message"]["content"]
+        except ValueError as e:
+            logger.error(f"Error making request: {e}")
 
     def get_miner_by_netuid(self, miner_id: int):
         logger.info("getting miner by netuid")
@@ -115,94 +134,93 @@ class Validator(BaseValidator):
         except ValueError as e:
             logger.error(f"Key not found: {e}")
 
-    async def generate_sample_response(self, message: Message) -> str:
-        logger.info("generating sample response")
-        response = await self.make_request(message)
-        logger.debug(f"sample response generated:\n{response}")
-        return response
-
     async def get_sample_result(self):
         logger.info("getting sample result")
         topic = random.choice(TOPICS)
         logger.debug(f"sample topic:\n{topic}")
-        prompt = Message(content=topic, role="user")
-        sample_result = await self.generate_sample_response(message=prompt)
-        return tokenizer.embedding_function.encode(sample_result), prompt
+        topic_message = Message(
+            content=f"Please write a short alegory about this topic: {topic}",
+            role="user",
+        )
+
+        logger.debug(f"\nSample Topic:\n{topic_message}")
+        sample_result = await self.make_request(
+            messages=[topic_message], input_url=str(os.getenv("AGENTARTIFICIAL_URL"))
+        )
+        logger.debug(f"\nSample Result:\n{sample_result}")
+        prompt = Message(content=str(sample_result), role="user")
+        return tokenizer.embedding_function.encode(str(sample_result)), prompt
 
     def validate_input(self, embedding1, embedding2):
-        logger.info("evaluating sample similarity")
+        logger.info("\nevaluating sample similarity")
         result = tokenizer.cosine_similarity(
             embedding1=embedding1, embedding2=embedding2
         )
-        logger.debug(f"similarity result: {result.hex()[:10]}...")
+        logger.debug(f"\nsimilarity result: {result.hex()[:10]}...")
         return result
+
+    def set_weights(self, uids, weights):
+        with open(VALI_KEY_FILEPATH, "r", encoding="utf-8") as f:
+            key = json.loads(f.read())["data"]
+
+        private_key = json.loads(key)["private_key"]
+        ss58_key = json.loads(key)["ss58_address"]
+
+        key = Keypair(ss58_address=ss58_key, private_key=private_key)
+
+        c_client.vote(key, uids, weights, netuid=10)
 
     async def validation_loop(self):
         logger.info("\nStarting validation loop")
         while True:
             # time.sleep(60)
+            ss58address = ""
             sample_embedding, message = await self.get_sample_result()
             length = len(sample_embedding)
             zero_score = [0.0001 for _ in range(length)]
-            self.checked_list = []
-            self.checking_list = []
             score_dict = {}
+            msg = message
             try:
                 self.miner_list = self.get_queryable_miners()  # type: ignore
             except Exception as e:
                 logger.error(f"\nMiner list not found: {e}")
-                continue
 
-            if len(self.miner_list) > 0 and len(self.miner_list) <= 25:
-                check_range = len(self.miner_list)
-                logger.debug(check_range)
-                if len(self.miner_list) <= 0:
-                    logger.error("\nNo miner found. Please try again later.")
-                    continue
-            else:
-                check_range = 25
-
-            for _ in range(check_range):
+            for miner_info in self.miner_list:
+                print(miner_info)
+                uid = miner_info["netuid"]
+                address_info = miner_info["address"]
+                miner_host = address_info[0]
+                miner_port = address_info[1]
+                miner_responses = {}
+                logger.debug(f"\nChecking miners:\n {self.checking_list}")
                 try:
-                    miner = random.choice(self.miner_list)
-                except (IndexError, KeyError) as e:
-                    logger.error(f"\nNo miner found. Please try again later. {e}")
-                    continue
-
-                uid, address = miner
-
-                if miner not in self.checked_list:
-                    self.checked_list.append(miner)
-                    self.checking_list.append(miner)
-
-            logger.debug(f"\nChecking miners:\n {self.checking_list}")
-            miner_responses = {}
-            try:
-                miner_responses = self.get_miner_generation(
-                    miner_list=self.checking_list,  # type: ignore
-                    miner_input=message,
-                )
-                logger.debug(f"\nMiner response: {miner_responses}")
-            except Exception as e:
-                logger.error(f"\nError getting miner reponses: {e}")
+                    logger.debug(f"\nMiner: {uid} - {miner_host}:{miner_port}")
+                    miner_response = await self.make_request(
+                        messages=[msg],
+                        input_url=f"http://{miner_host}:{miner_port}/generate",
+                    )
+                    miner_responses[uid] = miner_response
+                    logger.debug(f"\nMiner responses:\n {miner_responses}")
+                    miner_responses[uid] = zero_score
+                except Exception as e:
+                    logger.error(f"\nMiner not found: {e}")
             for uid, miner_response in miner_responses.items():
                 try:
                     score = self.validate_input(
                         embedding1=miner_response, embedding2=sample_embedding
                     )
+                    logger.debug(f"\nMiner: {uid}\nScore: {score}")
 
                     score_dict[uid] = score
                 except ValueError as e:
-                    logger.error(f"\nScore not found: {e}")
-                    score_dict[uid] = 0.0001
+                    logger.debug(f"\nScore not found: {e}")
+                    score_dict[uid] = 0.00000000000000001
 
-            if not score_dict:
-                logger.error("\nNo scores generated. Please try again later.")
-                continue
+                logger.debug(f"\n Score: {score}.")
 
-            adjusted_scores: dict[int, float] = threshold_sigmoid_reward_distribution(
-                score_dict
-            )
+            logger.debug(f"\nScore dict:\n{score_dict}")
+            adjusted_scores = threshold_sigmoid_reward_distribution(score_dict)
+            logger.debug(f"\nAdjusted scores:\n{adjusted_scores}")
             total_scores: float | Literal[0] = sum(adjusted_scores.values())
             weighted_scores: dict[int, int] = {
                 miner: int(score * 1000 / total_scores)
@@ -212,24 +230,19 @@ class Validator(BaseValidator):
 
             if not weighted_scores:
                 logger.info(
-                    "No effective weights found after adjustment. Please try again later."
+                    "\nNo effective weights found after adjustment. Please try again later."
                 )
-                continue
-            logger.debug(f"adjusted scores:\n{adjusted_scores}")
+
+            logger.debug(f"\nFully adjusted scores:\n{adjusted_scores}")
 
             try:
                 logger.info("voting on weighted scores")
                 uids = list(weighted_scores.keys())
                 weights = list(weighted_scores.values())
-                if c_client:
-                    c_client.vote(
-                        key=Keypair(ss58_address=self.settings.ss58_address),
-                        uids=uids,
-                        weights=weights,
-                        netuid=10,
-                    )
-            except ConnectionError as e:
-                logger.error(e)
+                print(uids, weights)
+                self.set_weights(uids=uids, weights=weights)
+            except Exception:
+                logger.error("\nConnection error")
 
     async def serve(self) -> None:
         """
@@ -255,15 +268,3 @@ class Validator(BaseValidator):
         #
         #        await self.validation_loop()
         uvicorn.run(app, host=self.host, port=self.port)
-
-
-if __name__ == "__main__":
-    settings = ValidatorSettings(
-        key_name="agent.ArtificialValidator",
-        module_path="agent.ArtificialValidator",
-        host="0.0.0.0",
-        port=50050,
-        use_testnet=True,
-    )
-    validator = Validator(settings)
-    asyncio.run(validator.validation_loop())
