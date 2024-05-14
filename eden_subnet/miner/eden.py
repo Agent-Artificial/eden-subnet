@@ -1,4 +1,4 @@
-""" This is an example of how you can write a script to launch miners. Inherit the miner class into a new miner and instantiate an instance of that class when you call the script modified by the minter settings to your specificiation. Make sure the file this code is in is the first part of the miner name. In this example it is eden which is the start of eden.Miner where Miner is the class name."""
+"""This is an example of how you can write a script to launch miners. Inherit the miner class into a new miner and instantiate an instance of that class when you call the script modified by the minter settings to your specificiation. Make sure the file this code is in is the first part of the miner name. In this example it is eden which is the start of eden.Miner where Miner is the class name."""
 
 from eden_subnet.miner.miner import Miner, MinerSettings
 import argparse
@@ -22,19 +22,17 @@ def parseargs():
 
 args = parseargs()
 
-#Apply settings
+# Apply settings
 
 miner_settings = MinerSettings(
     key_name=args.key_name,
     module_path=args.key_name,
     host=args.host,
     port=args.port,
-    ss58_address: Ss58Address=None,
-    use_testnet=args.use_testnet,
-    call_timeout: int
 )
 
 configuration = miner_settings
+
 
 # Create new class names to let the miners have unique names.
 class Miner_1(Miner):
@@ -55,7 +53,7 @@ class Miner_1(Miner):
             port=settings.port,
             ss58_address=settings.get_ss58_address(settings.key_name),
             use_testnet=False,
-            call_timeout=60
+            call_timeout=60,
         )
 
 
@@ -77,7 +75,7 @@ class Miner_2(Miner):
             port=settings.port,
             ss58_address=settings.get_ss58_address(settings.key_name),
             use_testnet=False,
-            call_timeout=60
+            call_timeout=60,
         )
 
 
@@ -99,7 +97,7 @@ class Miner_3(Miner):
             port=settings.port,
             ss58_address=settings.get_ss58_address(settings.key_name),
             use_testnet=False,
-            call_timeout=60
+            call_timeout=60,
         )
 
 
@@ -121,7 +119,7 @@ class Miner_4(Miner):
             port=settings.port,
             ss58_address=settings.get_ss58_address(settings.key_name),
             use_testnet=False,
-            call_timeout=60
+            call_timeout=60,
         )
 
 
@@ -143,7 +141,7 @@ class Miner_5(Miner):
             port=settings.port,
             ss58_address=settings.get_ss58_address(settings.key_name),
             use_testnet=False,
-            call_timeout=60
+            call_timeout=60,
         )
 
 
@@ -165,7 +163,7 @@ class Miner_6(Miner):
             port=settings.port,
             ss58_address=settings.get_ss58_address(settings.key_name),
             use_testnet=False,
-            call_timeout=60
+            call_timeout=60,
         )
 
 
@@ -187,7 +185,7 @@ class Miner_7(Miner):
             port=settings.port,
             ss58_address=settings.get_ss58_address(settings.key_name),
             use_testnet=False,
-            call_timeout=60
+            call_timeout=60,
         )
 
 
@@ -209,7 +207,7 @@ class Miner_8(Miner):
             port=settings.port,
             ss58_address=settings.get_ss58_address(settings.key_name),
             use_testnet=False,
-            call_timeout=60
+            call_timeout=60,
         )
 
 
@@ -231,10 +229,11 @@ class Miner_9(Miner):
             port=settings.port,
             ss58_address=settings.get_ss58_address(settings.key_name),
             use_testnet=False,
-            call_timeout=60
+            call_timeout=60,
         )
 
-# Map the classes to the their names so you can call them with a string. 
+
+# Map the classes to the their names so you can call them with a string.
 miner_map = {
     "Miner_1": Miner_1,
     "Miner_2": Miner_2,
@@ -248,6 +247,8 @@ miner_map = {
 }
 
 # Instantiate the selected map miner and serve.
-miner = miner_map[configuration.key_name.split(".")[1]]()
+miner = miner_map[args.key_name.split(".")[-1]](configuration)
 
-miner.serve(MinerSettings)
+# (miner_settings)
+
+miner.serve(configuration)

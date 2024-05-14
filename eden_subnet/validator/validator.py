@@ -94,19 +94,16 @@ class Validator(BaseValidator):
     This class extends BaseValidator and includes various attributes related to validator settings and operations. It provides methods for making requests, retrieving miners, getting keys, validating input, setting weights, running a validation loop, and serving the validator asynchronously.
     """
 
-    key_name: str = Field(default="")
-    module_path: str = Field(default="")
-    host: str = Field(default="")
-    port: int = Field(default=0)
-    miner_list: List[Tuple[str, Ss58Address]] = Field(default_factory=list)
-    checked_list: List[Tuple[str, Ss58Address]] = Field(default_factory=list)
-    saved_key: Union[Dict[Any, Any], None] = Field(default=None)
-    checking_list: List[Tuple[str, Ss58Address]] = Field(default_factory=list)
-    ss58_address: Ss58Address = Field(default_factory=None)
-    model_config: ConfigDict = Field(
-        default_factory=lambda: ConfigDict(arbitrary_types_allowed=True)
-    )
-    settings: ValidatorSettings = Field(default_factory=None)
+    key_name: str
+    module_path: str
+    port: int
+    miner_list: List[Tuple[str, Ss58Address]]
+    checked_list: List[Tuple[str, Ss58Address]]
+    saved_key: Union[Dict[Any, Any], None]
+    checking_list: List[Tuple[str, Ss58Address]]
+    ss58_address: Ss58Address
+    model_config: ConfigDict = ConfigDict(arbitrary_types_allowed=True)
+    settings: ValidatorSettings
 
     def __init__(self, settings: ValidatorSettings) -> None:
         """
