@@ -1,9 +1,13 @@
 import asyncio
 import typer
+import shutil
+import json
 from eden_subnet.validator.validator import Validator, ValidatorSettings
 from eden_subnet.miner.miner import Miner, MinerSettings
 from typing import Annotated
 from dotenv import load_dotenv
+from pathlib import Path
+from importlib import import_module
 
 
 load_dotenv()
@@ -52,9 +56,18 @@ def serve_validator(
         host=host,
         port=port,
     )
-
-    validator = Validator(settings)
-    asyncio.run(validator.validation_loop())
+    name = key_name.split(".")[0]
+    class_name = key_name.split(".")[1]
+    edenpath = Path("eden_subnet/validator/eden.py")
+    validatorpath = Path(f"eden_subnet/validator/{name}.py")
+    if not validatorpath.exists():
+        shutil.copy(edenpath, validatorpath)
+        validator_text_data = json.loads(validatorpath.read_text("utf-8"))
+        validator_text_data.replace("Validator_0", class_name)
+    valdiator = import_module(
+        name=key_name, package="eden_subnet.validator"
+    ).class_name(settings)
+    valdiator.validate_loop()
 
 
 @app.command("serve-miner")

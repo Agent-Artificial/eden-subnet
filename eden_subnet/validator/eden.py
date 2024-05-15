@@ -2,6 +2,8 @@
 
 from eden_subnet.validator.validator import Validator, ValidatorSettings
 import argparse
+from loguru import logger
+import asyncio
 
 import time
 
@@ -17,7 +19,6 @@ def parseargs():
     parser.add_argument("--key_name", type=str, default="")
     parser.add_argument("--host", type=str, default="0.0.0.0")
     parser.add_argument("--port", type=int, default=10000)
-    parser.add_argument("--use_testnet", type=bool, default=False)
     return parser.parse_args()
 
 
@@ -25,7 +26,7 @@ args = parseargs()
 
 # Apply settings
 
-ValiSettings = ValidatorSettings(
+validator_settings = ValidatorSettings(
     key_name=args.key_name,
     module_path=args.key_name,
     host=args.host,
@@ -35,56 +36,29 @@ ValiSettings = ValidatorSettings(
 
 # Create a new class names to let the validators have unique names.
 class Validator_0(Validator):
+    @logger.catch()
     def __init__(self, settings: ValidatorSettings) -> None:
-        """
-        Initializes the Validator object with the provided settings.
-
-        Args:
-            settings (ValidatorSettings): The settings object containing validator configuration.
-
-        Returns:
-            None
-        """
-        super().__init__(settings=settings)
-
-
-class Validator_1(Validator):
-    def __init__(self, settings: ValidatorSettings) -> None:
-        """
-        Initializes the Validator object with the provided settings.
-
-        Args:
-            settings (ValidatorSettings): The settings object containing validator configuration.
-
-        Returns:
-            None
-        """
-        super().__init__(settings)
-
-
-class Validator_2(Validator):
-    def __init__(self, settings: ValidatorSettings) -> None:
-        """
-        Initializes the Validator object with the provided settings.
-
-        Args:
-            settings (ValidatorSettings): The settings object containing validator configuration.
-
-        Returns:
-            None
-        """
-        super().__init__(settings)
+        super().__init__(
+            key_name=settings.key_name,
+            module_path=settings.module_path,
+            host=settings.host,
+            port=settings.port,
+            settings=settings,
+        )
 
 
 validator_map = {
-    "eden.Validator_0": Validator_0,
-    "eden.Validator_1": Validator_1,
-    "eden.Validator_2": Validator_2,
+    "Validator_0": Validator_0,
+    "Validator_1": "Validator_1",
+    "Validator_2": "Validator_2",
 }
 
 # Stager the validators for multiple instances
-time.sleep(0 + 10 * int(args.key_name[-1:]))
+time.sleep(10 * (validator_settings.port - 10000))
 
 # Serve the validator
-
-validator = validator_map[args.key_name](ValidatorSettings)
+print(validator_settings.key_name.split(".")[-1])
+validator = validator_map[validator_settings.key_name.split(".")[-1]](
+    settings=validator_settings,
+)
+asyncio.run(validator.validate_loop())

@@ -23,6 +23,10 @@ communex = "^0.1.25.1"
 python-dotenv = "^1.0.1"
 eth-typing = "^4.2.3"
 
+[tool.poetry.group.dev.dependencies]
+ipykernel = "^6.29.4"
+ipython-db = "^1.0"
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
