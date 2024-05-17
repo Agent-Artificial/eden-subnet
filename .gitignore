@@ -5,4 +5,7 @@
 **/**/__pycache__
 websocket-client
 testing.py
-
+unstake.py
+voting.py
+voting2.py
+voting3.py

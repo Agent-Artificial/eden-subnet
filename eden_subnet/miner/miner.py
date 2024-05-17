@@ -6,7 +6,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import HTTPException
 from pydantic import BaseModel, Field
-from typing import Dict
 
 from communex.module.module import Module, endpoint
 from communex.client import Ss58Address
@@ -108,8 +107,13 @@ class Miner(BaseModel, Module):
         """
         uvicorn.run(app, host=settings.host, port=settings.port)
 
+    def __call__(self):
+        """
+        Executes the instance when called, running the FastAPI app with the specified host and port.
+        """
+        uvicorn.run(app, host="0.0.0.0", port=10001)
+
     @endpoint
-    @app.post("/generate")
     def generate(self, request: GenerateRequest):
         """
         A function that generates something based on the provided request.
@@ -123,24 +127,50 @@ class Miner(BaseModel, Module):
         Raises:
             HTTPException: If an HTTP exception occurs during the generation process.
         """
-        try:
-            dict_request = request.model_dump()
-            content = dict_request["messages"][0]["content"]
-            result = tokenizer.embedding_function.encode(content)
-            return {
-                "choices": [
-                    {
-                        "index": 0,
-                        "message": {
-                            "role": "assistant",
-                            "content": result,
-                        },
-                    }
-                ]
-            }
+        dict_request = request.model_dump()
+        content = dict_request["messages"][0]["content"]
+        result = tokenizer.embedding_function.encode(content)
+        return {
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": result,
+                    },
+                }
+            ]
+        }
 
-        except HTTPException as e:
-            raise HTTPException(status_code=500, detail={"error": str(e)}) from e
 
-    def __call__(self):
-        uvicorn.run(app, host="0.0.0.0", port=10001)
+@app.post("/generate")
+def generate(request: GenerateRequest):
+    """
+    A function that generates something based on the provided request.
+
+    Args:
+        request (GenerateRequest): The request object containing information for generation.
+
+    Returns:
+        dict: A dictionary containing the generated choices.
+
+    Raises:
+        HTTPException: If an HTTP exception occurs during the generation process.
+    """
+    try:
+        miner = Miner(
+            key_name="miner.Miner",
+            module_path="miner.Miner",
+            host="0.0.0.0",
+            port=10001,
+            ss58_address=Ss58Address("miner.Miner"),
+            use_testnet=False,
+            call_timeout=60,
+        )
+        result = miner.generate(request)
+        logger.debug(f"result: {result}")
+        if result:
+            return result
+
+    except HTTPException as e:
+        raise HTTPException(status_code=500, detail={"error": str(e)}) from e

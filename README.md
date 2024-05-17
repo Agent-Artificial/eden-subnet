@@ -14,6 +14,31 @@ Vector stores play a crucial role in augmenting the abilities and knowledge base
 
 We are initiating our subnet by deploying simple embedding miners. These miners utilize embedding functions to generate token embeddings, which are then stored in vectorstores. The second phase of our project involves leveraging these embedding miners to establish a distributed vector store. Our strategy includes creating domain-specific knowledge stores, which will be indexed on the blockchain. These stores will provide data as a service to large language models (LLMs). Additionally, we are exploring the integration of knowledge graphs and the storage of synthetic data. Potential collaborations are being considered, including one with the Synthia subnet, to enhance our capabilities in synthetic data handling.
 
+## Setup Instructions
+
+Once you clone the repo you need to copy the `eden.py` file from `eden_subnet/miner/eden.py` to whatever the first part of your name is going to be.
+
+Example: 
+`cp eden_subnet/miner/eden.py eden_subnet/miner/my_miner.py`
+
+Inside of that file you need to change the class name from  `Miner_1` to whatever you want the second part of the name to be.
+
+Example:
+```class Miner_1(Miner):    >    class BobTheMiner(Miner): ...
+    ...                           ...
+```
+
+that determines the key name and module path so in the example it would be 
+my_miner.BobTheMiner
+then you need to make a key
+comx key create my_miner.BobTheMiner
+then you need to register the miner 
+comx module register my_miner.BobTheMiner my_miner.BobTheMiner 66.235.35.363 8000 --netuid 10
+after that you need to serve it with
+python -m eden_subnet.cli --key_name my_miner.BobTheMiner my_miner.BobTheMiner --host 0.0.0.0 --port 8000
+or you can call the file directly 
+python -m eden_subnet/miner/my_miner --key_name my_miner.BobTheMiner --host 0.0.0.0 --port 8000
+
 ## Embedding Miner
 
 Base miner is in the [miner](eden_subnet/miner/miner.py) folder. Copy the class `Miner` and pass it the `MinerSettings` class to deploy your own version. The repo references the position of the miner class and the file it resides in through a naming convention of the miner. Use <FILE_NAME>.<CLASS_NAME> for both the name of the key you are staking with and the file/class name of the code to your miner. 
