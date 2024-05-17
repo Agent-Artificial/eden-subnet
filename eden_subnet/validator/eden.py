@@ -2,7 +2,8 @@
 
 from eden_subnet.validator.validator import Validator, ValidatorSettings
 import argparse
-
+from loguru import logger
+import asyncio
 import time
 
 
@@ -14,10 +15,9 @@ def parseargs():
         argparse.Namespace: Object containing the parsed arguments.
     """
     parser = argparse.ArgumentParser()
-    parser.add_argument("--key_name", type=str, default="")
+    parser.add_argument("--key_name", type=str, default="validator.Validator")
     parser.add_argument("--host", type=str, default="0.0.0.0")
     parser.add_argument("--port", type=int, default=10000)
-    parser.add_argument("--use_testnet", type=bool, default=False)
     return parser.parse_args()
 
 
@@ -25,7 +25,7 @@ args = parseargs()
 
 # Apply settings
 
-ValiSettings = ValidatorSettings(
+validator_settings = ValidatorSettings(
     key_name=args.key_name,
     module_path=args.key_name,
     host=args.host,
@@ -35,56 +35,128 @@ ValiSettings = ValidatorSettings(
 
 # Create a new class names to let the validators have unique names.
 class Validator_0(Validator):
+    @logger.catch()
     def __init__(self, settings: ValidatorSettings) -> None:
         """
-        Initializes the Validator object with the provided settings.
+        Initializes the Validator class with the provided settings.
 
         Args:
-            settings (ValidatorSettings): The settings object containing validator configuration.
+            settings (ValidatorSettings): An instance of ValidatorSettings containing key_name, module_path, host, port, and settings.
 
         Returns:
             None
         """
-        super().__init__(settings=settings)
+        super().__init__(
+            key_name=settings.key_name,
+            module_path=settings.module_path,
+            host=settings.host,
+            port=settings.port,
+            settings=settings,
+        )
 
 
 class Validator_1(Validator):
+    @logger.catch()
     def __init__(self, settings: ValidatorSettings) -> None:
         """
-        Initializes the Validator object with the provided settings.
+        Initializes the Validator class with the provided settings.
 
         Args:
-            settings (ValidatorSettings): The settings object containing validator configuration.
+            settings (ValidatorSettings): An instance of ValidatorSettings containing key_name, module_path, host, port, and settings.
 
         Returns:
             None
         """
-        super().__init__(settings)
+        super().__init__(
+            key_name=settings.key_name,
+            module_path=settings.module_path,
+            host=settings.host,
+            port=settings.port,
+            settings=settings,
+        )
 
 
 class Validator_2(Validator):
+    @logger.catch()
     def __init__(self, settings: ValidatorSettings) -> None:
         """
-        Initializes the Validator object with the provided settings.
+        Initializes the Validator class with the provided settings.
 
         Args:
-            settings (ValidatorSettings): The settings object containing validator configuration.
+            settings (ValidatorSettings): An instance of ValidatorSettings containing key_name, module_path, host, port, and settings.
 
         Returns:
             None
         """
-        super().__init__(settings)
+        super().__init__(
+            key_name=settings.key_name,
+            module_path=settings.module_path,
+            host=settings.host,
+            port=settings.port,
+            settings=settings,
+        )
+
+
+class Validator_3(Validator):
+    @logger.catch()
+    def __init__(self, settings: ValidatorSettings) -> None:
+        """
+        Initializes the Validator class with the provided settings.
+
+        Args:
+            settings (ValidatorSettings): An instance of ValidatorSettings containing key_name, module_path, host, port, and settings.
+
+        Returns:
+            None
+        """
+        super().__init__(
+            key_name=settings.key_name,
+            module_path=settings.module_path,
+            host=settings.host,
+            port=settings.port,
+            settings=settings,
+        )
+
+
+class Validator_4(Validator):
+    @logger.catch()
+    def __init__(self, settings: ValidatorSettings) -> None:
+        """
+        Initializes the Validator class with the provided settings.
+
+        Args:
+            settings (ValidatorSettings): An instance of ValidatorSettings containing key_name, module_path, host, port, and settings.
+
+        Returns:
+            None
+        """
+        super().__init__(
+            key_name=settings.key_name,
+            module_path=settings.module_path,
+            host=settings.host,
+            port=settings.port,
+            settings=settings,
+        )
 
 
 validator_map = {
     "eden.Validator_0": Validator_0,
     "eden.Validator_1": Validator_1,
     "eden.Validator_2": Validator_2,
+    "eden.Validator_3": Validator_3,
+    "eden.Validator_4": Validator_4,
 }
 
 # Stager the validators for multiple instances
-time.sleep(0 + 10 * int(args.key_name[-1:]))
+# i = 0
+# while i < validator_settings.port - 10000:
+#    i += 1
+#    logger.info(f"\nStaging Validator {i}")
+#    time.sleep(1)
 
 # Serve the validator
-
-validator = validator_map[args.key_name](ValidatorSettings)
+logger.info("\nLaunching validator_settings.key_name")
+validator = validator_map[validator_settings.key_name](
+    settings=validator_settings,
+)
+validator.run_voteloop()

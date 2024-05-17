@@ -1,0 +1,14 @@
+uvicorn
+httpx
+loguru
+torch
+torchaudio
+torchvision
+transformers
+sentence-transformers
+tiktoken
+cellium
+substrate-interface
+communex
+python-dotenv
+eth-typing

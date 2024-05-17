@@ -232,7 +232,6 @@ class Miner_9(Miner):
             call_timeout=60,
         )
 
-
 # Map the classes to the their names so you can call them with a string.
 miner_map = {
     "Miner_1": Miner_1,

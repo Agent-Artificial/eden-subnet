@@ -1,39 +1,40 @@
 import random
 import json
-import asyncio
 import time
-import base64
-import uvicorn
 import os
 import requests
-from requests import Request
+import asyncio
 from pathlib import Path
 from loguru import logger
 from dotenv import load_dotenv
-from typing import Any, Literal, List, Union, Tuple, Dict
-from numpy import floating
-from numpy._typing import _64Bit
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from communex.compat.key import Keypair
+from communex.compat.key import Keypair, classic_load_key
 from communex.client import CommuneClient
 from communex._common import get_node_url
-from pydantic import Field, BaseModel
-from eden_subnet.base.base import Message
-from eden_subnet.miner.data_models import Message
-from eden_subnet.validator.data_models import TOPICS
-from eden_subnet.miner.tiktokenizer import TikTokenizer
-from eden_subnet.validator.sigmoid import threshold_sigmoid_reward_distribution
+from pydantic import BaseModel
+from typing import List
 from dotenv import load_dotenv
+
+from eden_subnet.miner.tiktokenizer import TikTokenizer
 
 load_dotenv()
 
-
-c_client = CommuneClient(get_node_url())
-
 tokenizer = TikTokenizer()
+comx = CommuneClient(get_node_url())
 
-VALI_KEY_FILEPATH = "/home/ubuntu/.commune/key/eden.Validator_1.json"
+
+logger.level("INFO")
+
+
+class Message(BaseModel):
+    """
+    A class representing a message.
+
+    Explanation:
+    This class defines a data model for a message with a single attribute 'text' of type str.
+    """
+
+    role: str
+    content: str
 
 
 class Ss58Address(BaseModel):
@@ -72,335 +73,571 @@ class ValidatorSettings(BaseModel):
     port: int
 
 
-class BaseValidator(BaseModel):
-    """
-    A class representing a base validator.
+class GenerateRequest(BaseModel):
+    messages: list
+    model: str
 
-    Explanation:
-    This class serves as a base model for validators and includes attributes such as key name, module path, host, and port.
-    """
 
+TOPICS = [
+    "The pursuit of knowledge",
+    "The impact of technology on society",
+    "The struggle between tradition and modernity",
+    "The nature of good and evil",
+    "The consequences of war",
+    "The search for identity",
+    "The journey of self-discovery",
+    "The effects of greed",
+    "The power of love",
+    "The inevitability of change",
+    "The quest for power",
+    "The meaning of freedom",
+    "The impact of colonization",
+    "The illusion of choice",
+    "The influence of media",
+    "The role of education",
+    "The effects of isolation",
+    "The battle against inner demons",
+    "The corruption of innocence",
+    "The loss of culture",
+    "The value of art",
+    "The complexities of leadership",
+    "The nature of sacrifice",
+    "The deception of appearances",
+    "The consequences of environmental degradation",
+    "The cycle of life and death",
+    "The impact of global capitalism",
+    "The struggle for equality",
+    "The influence of religion",
+    "The exploration of space",
+    "The effects of addiction",
+    "The dangers of ambition",
+    "The dynamics of family",
+    "The nature of truth",
+    "The consequences of scientific exploration",
+    "The illusion of happiness",
+    "The pursuit of beauty",
+    "The impact of immigration",
+    "The clash of civilizations",
+    "The struggle against oppression",
+    "The quest for eternal life",
+    "The nature of time",
+    "The role of fate and destiny",
+    "The impact of climate change",
+    "The dynamics of revolution",
+    "The challenge of sustainability",
+    "The concept of utopia and dystopia",
+    "The nature of justice",
+    "The role of mentorship",
+    "The price of fame",
+    "The impact of natural disasters",
+    "The boundaries of human capability",
+    "The mystery of the unknown",
+    "The consequences of denial",
+    "The impact of trauma",
+    "The exploration of the subconscious",
+    "The paradox of choice",
+    "The limitations of language",
+    "The influence of genetics",
+    "The dynamics of power and control",
+    "The nature of courage",
+    "The erosion of privacy",
+    "The impact of artificial intelligence",
+    "The concept of the multiverse",
+    "The struggle for resource control",
+    "The effects of globalization",
+    "The dynamics of social class",
+    "The consequences of unbridled capitalism",
+    "The illusion of security",
+    "The role of memory",
+    "The dynamics of forgiveness",
+    "The challenges of democracy",
+    "The mystery of creation",
+    "The concept of infinity",
+    "The meaning of home",
+    "The impact of pandemics",
+    "The role of mythology",
+    "The fear of the unknown",
+    "The challenge of ethical decisions",
+    "The nature of inspiration",
+    "The dynamics of exclusion and inclusion",
+    "The consequences of prejudice",
+    "The effects of fame and anonymity",
+    "The nature of wisdom",
+    "The dynamics of trust and betrayal",
+    "The struggle for personal autonomy",
+    "The concept of rebirth",
+    "The meaning of sacrifice",
+    "The impact of terrorism",
+    "The challenge of mental health",
+    "The exploration of alternate realities",
+    "The illusion of control",
+    "The consequences of technological singularity",
+    "The role of intuition",
+    "The dynamics of adaptation",
+    "The challenge of moral dilemmas",
+    "The concept of legacy",
+    "The impact of genetic engineering",
+    "The role of art in society",
+    "The effects of cultural assimilation",
+]
+
+
+class Validator:
     key_name: str
     module_path: str
     host: str
     port: int
-
-
-class Validator(BaseValidator):
-    """
-    A class representing a Validator.
-
-    Explanation:
-    This class extends BaseValidator and includes various attributes related to validator settings and operations. It provides methods for making requests, retrieving miners, getting keys, validating input, setting weights, running a validation loop, and serving the validator asynchronously.
-    """
-
-    key_name: str
-    module_path: str
-    port: int
-    miner_list: List[Tuple[str, Ss58Address]]
-    checked_list: List[Tuple[str, Ss58Address]]
-    saved_key: Union[Dict[Any, Any], None]
-    checking_list: List[Tuple[str, Ss58Address]]
-    ss58_address: Ss58Address
-    model_config: ConfigDict = ConfigDict(arbitrary_types_allowed=True)
     settings: ValidatorSettings
+    """
+    Represents a validator with key name, module path, host, port, and settings.
 
-    def __init__(self, settings: ValidatorSettings) -> None:
+    Args:
+        key_name: The name of the key.
+        module_path: The path of the module.
+        host: The host address.
+        port: The port number.
+        settings: ValidatorSettings object containing settings.
+
+    Attributes:
+        key_name (str): The name of the key.
+        module_path (str): The path of the module.
+        host (str): The host address.
+        port (int): The port number.
+        settings (ValidatorSettings): ValidatorSettings object containing settings.
+
+    Methods:
+        get_uid: Retrieves the UID based on key mapping.
+        load_local_key: Loads the local key from a JSON file.
+        make_request: Makes an asynchronous request with messages and input URL.
+        get_sample_result: Gets a sample result by making a request.
+        cosine_similarity: Calculates the cosine similarity between two embeddings.
+        validate_input: Evaluates the sample similarity using cosine similarity.
+        get_similairities: Gets similarities from multiple addresses.
+        validate_loop: Validates the loop by scoring modules and voting.
+        parse_addresses: Parses addresses from the network.
+        parse_weights: Parses existing weights from the network.
+        parse_stake: Parses stake information from the network.
+        check_weights: Checks for unranked weights and assigns default weight.
+        parse_keys: Parses keys from the network.
+        scale_numbers: Scales a list of numbers.
+        list_to_dict: Converts a list to a dictionary.
+        scale_dict_values: Scales dictionary values.
+        score_modules: Calculates scores based on weights, stake, and similarity.
+    """
+
+    def __init__(
+        self,
+        key_name: str,
+        module_path: str,
+        host: str,
+        port: int,
+        settings: ValidatorSettings,
+    ) -> None:
         """
-        Initializes the Validator object with the provided settings.
-
-        Explanation:
-        This function initializes the Validator object using the settings provided, including key name, module path, host, and port. It also retrieves and stores the saved key information and logs the initialization details.
+        Initializes a Validator object with key name, module path, host, port, and settings.
 
         Args:
-        - settings (ValidatorSettings): The settings object containing validator configuration.
-
-        Returns:
-        - None
+            key_name: The name of the key.
+            module_path: The path of the module.
+            host: The host address.
+            port: The port number.
+            settings: ValidatorSettings object containing settings.
         """
-        super().__init__(
-            key_name=settings.key_name,
-            module_path=settings.module_path,
-            host=settings.host,
-            port=settings.port,
-        )
-
+        self.key_name = key_name or settings.key_name
+        self.module_path = module_path or settings.module_path
+        self.host = host or settings.host
+        self.port = port or settings.port
         self.settings = settings
-        self.saved_key = (
-            json.loads(str(self.get_key(self.key_name))) if self.key_name else None
-        )
-        logger.info(f"Initializing validator with settings: {settings.model_dump()}")
 
-    @logger.catch
-    async def make_request(self, messages: List[Message], input_url: str = ""):
+    def get_uid(self):
         """
-        Makes a request using the provided messages and input URL. Returns the content of the first choice message from the response.
-
-        Args:
-        - messages (List[Message]): List of messages to be sent in the request.
-        - input_url (str): The URL to send the request to. If not provided, uses the default URL from the environment variables.
-
-        Returns:
-        - str: The content of the first choice message from the response.
-        """
-        try:
-            url = input_url or os.getenv("AGENTARTIFICIAL_URL")
-            payload = json.dumps(
-                {
-                    "messages": [message.model_dump() for message in messages],
-                    "model": str(os.getenv("AGENTARTIFICIAL_MODEL")),
-                }
-            )
-            headers = {
-                "Content-Type": "application/json",
-                "Authorization": str(os.getenv("AGENTARTIFICIAL_API_KEY")),
-            }
-
-            response = requests.request(
-                method="POST", url=str(url), headers=headers, data=payload, timeout=30
-            )
-            print(response.json())
-
-            return response.json()["choices"][0]["message"]["content"]
-        except ValueError as e:
-            logger.error(f"Error making request: {e}")
-
-    def get_miner_by_netuid(self, miner_id: int):
-        """
-        Retrieves the miner's ss58 address based on the provided miner ID.
+        Retrieves the unique identifier associated with the validator.
 
         Parameters:
-            miner_id (int): The ID of the miner.
+            None
 
         Returns:
-            str: The ss58 address of the miner if found, None otherwise.
-        """
-        logger.info("getting miner by netuid")
-        miners = self.get_queryable_miners()
-        for miner, ss58 in miners:  # type: ignore
-            if miner_id in miner:
-                return ss58
-            return
-
-    def get_key(self, key_name: str):
-        """
-        Retrieves the validator key from the local storage based on the provided key name.
-
-        Parameters:
-            key_name (str): The name of the key to retrieve.
-
-        Returns:
-            str: The validator key if found, None otherwise.
+            The unique identifier (uid) of the validator.
 
         Raises:
-            ValueError: If the key is not found in the local storage.
+            ValueError: If the unique identifier (uid) is not found.
         """
-        logger.info("getting validator key from local storage")
+        key_map = comx.query_map_key(netuid=10)
+        keypair = classic_load_key(self.key_name)
+        ss58_address = keypair.ss58_address
+        ss58 = ""
+        for uid, ss58 in key_map.items():
+            if ss58 == ss58_address:
+                return uid
+        raise ValueError(
+            f"\nUID not found, {ss58} please check your validator is registered with\n comx module info {self.key_name}"
+        )
+
+    def load_local_key(self):
+        """
+        Loads the local key from the specified keypath and returns a Keypair object.
+
+        Parameters:
+            self: The Validator object.
+
+        Returns:
+            Keypair: A Keypair object with the private key and SS58 address.
+        """
+        keypath = (
+            Path(f"$HOME/.commune/key/{self.key_name}.json").expanduser().resolve()
+        )
+        with open(keypath, "r", encoding="utf-8") as f:
+            key = json.loads(f.read())["data"]
+            private_key = json.loads(key)["private_key"]
+            ss58address = json.loads(key)["ss58_address"]
+            return Keypair(private_key=private_key, ss58_address=ss58address)
+
+    async def make_request(self, message: Message, input_url: str = ""):
+        """
+        A function that makes a request based on the provided messages and input URL.
+
+        Parameters:
+            messages (List[Message]): A list of Message objects to be used in the request.
+            input_url (str): The URL to make the request to. Default is an empty string.
+
+        Returns:
+            str: The content of the response from the request, processed to extract specific content.
+
+        Raises:
+            Exception: If an error occurs during the request process.
+        """
+        # input_url = "http://localhost:10001/generate"
+        logger.info("\nMaking request")
+
+        payload = json.dumps(
+            {
+                "messages": [{"content": message.content, "role": "user"}],
+                "model": "llama-3-8b-instruct",
+            }
+        )
+        headers = {"Content-Type": "application/json"}
+        if api_key := os.getenv("AGENTARTIFICIAL_API_KEY") or os.getenv(
+            "OPENAI_API_KEY"
+        ):
+            headers["Authorization"] = f"Bearer {api_key}"
+
+        result = ""
         try:
-            key_dir = Path("~/.commune/key").expanduser().resolve()
-            keypaths = key_dir.iterdir()
-            for keypath in keypaths:
-                key = json.loads(keypath.read_text())["data"]
-                if key_name in key or key_name in str(keypath):
-                    return key
-        except ValueError as e:
-            logger.error(f"Key not found: {e}")
+            response = requests.request(
+                method="POST",
+                url=input_url,
+                headers=headers,
+                data=payload,
+                timeout=30,
+            )
+            logger.debug(f"\nResponse:\n{response.content}")
+            result = response.json()["choices"][0]["message"]["content"]
+
+        except Exception as e:
+            logger.error(f"\nError making request:\n{e}")
+            if input_url != str(os.getenv("AGENTARTIFICIAL_URL")):
+                result = "No response made. Please try again."
+
+        return result
 
     async def get_sample_result(self):
         """
-        Asynchronously retrieves a sample result from the AgentArtificial service.
-
-        This function selects a random topic from the TOPICS list and creates a Message object
-        with the topic as the content and role set to "user". It then sends a request to the
-        AgentArtificial service with the topic message and retrieves the sample result. The
-        sample result is logged as a debug message.
-
-        The function then creates a Message object with the sample result as the content and
-        role set to "user". The sample result is encoded using the embedding function from the
-        tokenizer and returned along with the prompt Message object.
+        Asynchronously retrieves a sample result by selecting a random topic from the predefined TOPICS list,
+        creating a message based on the chosen topic, making a request using the message, and returning the sample result.
 
         Returns:
-            Tuple[List[float], Message]: A tuple containing the encoded sample result and the
-            prompt Message object.
+            The sample result obtained from the request.
 
         Raises:
-            None
+            Any exceptions that occur during the request.
         """
-        logger.info("getting sample result")
+        logger.info("\nGetting sample result")
         topic = random.choice(TOPICS)
-        logger.debug(f"sample topic:\n{topic}")
+        logger.debug(f"\nsample topic:\n{topic}")
         topic_message = Message(
             content=f"Please write a short alegory about this topic: {topic}",
             role="user",
         )
-
-        logger.debug(f"\nSample Topic:\n{topic_message}")
         sample_result = await self.make_request(
-            messages=[topic_message], input_url=str(os.getenv("AGENTARTIFICIAL_URL"))
+            message=topic_message, input_url=str(os.getenv("AGENTARTIFICIAL_URL"))
         )
         logger.debug(f"\nSample Result:\n{sample_result}")
-        prompt = Message(content=str(sample_result), role="user")
-        return tokenizer.embedding_function.encode(str(sample_result)), prompt
+        return sample_result
+
+    def cosine_similarity(self, embedding1, embedding2):
+        """
+        Calculates the cosine similarity between two embeddings.
+
+        Parameters:
+            embedding1: The first embedding.
+            embedding2: The second embedding.
+
+        Returns:
+            The normalized similarity value multiplied by 99.
+        """
+        logger.info("\nCalculating cosine similarity")
+        import numpy as np
+        from scipy.spatial.distance import cosine
+
+        # Example vectors
+        vec1 = np.array(embedding1)
+        vec2 = np.array(embedding2)
+
+        # Normalizing vectors
+        vec1_norm = vec1 / np.linalg.norm(vec1)
+        vec2_norm = vec2 / np.linalg.norm(vec2)
+
+        # Calculating cosine distance
+        cosine_distance = cosine(vec1_norm, vec2_norm)
+        logger.debug(f"\ncosine distance: {cosine_distance}")
+
+        normalized_similiarity = cosine_distance + 1
+        logger.debug(f"\nnormalized similarity: {normalized_similiarity}")
+        return normalized_similiarity * 99
 
     def validate_input(self, embedding1, embedding2):
         """
-        Calculate the cosine similarity between two embeddings.
-
-        Args:
-            embedding1 (List[int]): The first embedding.
-            embedding2 (List[int]): The second embedding.
-
-        Returns:
-            float: The cosine similarity between the two embeddings.
-
-        This function calculates the cosine similarity between two embeddings using the `tokenizer.cosine_similarity` method. It takes in two embeddings, `embedding1` and `embedding2`, as input and returns the cosine similarity between them. The cosine similarity is a measure of similarity between two vectors that is defined as the cosine of the angle between them. The angle is measured in radians and the cosine is a value between -1 and 1. A cosine similarity of 1 indicates that the two vectors are identical, while a cosine similarity of -1 indicates that the two vectors are opposite. The function logs the similarity result using the `logger.debug` method and returns the similarity value.
-        """
-        logger.info("\nevaluating sample similarity")
-        result = tokenizer.cosine_similarity(
-            embedding1=embedding1, embedding2=embedding2
-        )
-        logger.debug(f"\nsimilarity result: {result.hex()[:10]}...")
-        return result
-
-    def set_weights(self, uids, weights):
-        """
-        Set weights for validators.
-
-        This function sets weights for validators using the provided `uids` and `weights` parameters. It reads the key information from the `VALI_KEY_FILEPATH` file, parses it, and extracts the `private_key` and `ss58_address` values. It then creates a `Keypair` object using the extracted values. Finally, it calls the `vote` method of the `c_client` object, passing in the `key`, `uids`, `weights`, and `netuid` parameters.
+        A function to validate input embeddings by evaluating sample similarity.
 
         Parameters:
-            uids (List[int]): A list of validator IDs.
-            weights (List[float]): A list of weights for the validators.
+            embedding1: The first embedding.
+            embedding2: The second embedding.
+
+        Returns:
+            The result of the validation after evaluating the similarity.
+        """
+        logger.info("\nEvaluating sample similarity")
+        if not embedding1 and len(embedding2) != 0:
+            embedding1 = [[0] for _ in range(len(embedding2))]
+        result = 0.0
+        try:
+            response = self.cosine_similarity(
+                embedding1=embedding1, embedding2=embedding2
+            )
+            logger.debug(f"\nsimilarity result: {result}...")
+            result = round(response, 2)
+        except Exception as e:
+            logger.error(f"\ncould not connect to miner, adjusting score.\n{e}")
+            result = 0.01
+        return result
+
+    async def get_similairities(self, selfuid, encoding, prompt_message, addresses):
+        """
+        Retrieves similarities from different addresses by making requests and validating the responses.
+
+        Parameters:
+            selfuid: The unique identifier of the calling entity.
+            encoding: The encoding type for the validation.
+            prompt_message: The message used for generating the response.
+            addresses: A dictionary containing UIDs and corresponding addresses.
+
+        Returns:
+            A dictionary containing the responses from different addresses after validation.
+        """
+        miner_responses = {}
+        for uid, address in addresses.items():
+            if uid == selfuid:
+                continue
+            url = f"http://{address}/generate"
+            if f"http://{self.host}:{self.port}/generate" == url:
+                continue
+            try:
+                response = await self.make_request(
+                    message=prompt_message, input_url=url
+                )
+
+                miner_responses[uid] = self.validate_input(encoding, response)
+            except Exception as e:
+                logger.debug(f"\nError getting similairities: {e}\n{e.args}\n")
+            time.sleep(10)
+        return miner_responses
+
+    async def validate_loop(self):
+        """
+        Executes a loop to validate weights and scoring based on sample results and similarities.
+
+        Parameters:
+            None
 
         Returns:
             None
         """
-        with open(VALI_KEY_FILEPATH, "r", encoding="utf-8") as f:
-            key = json.loads(f.read())["data"]
+        selfuid = self.get_uid()
 
-        private_key = json.loads(key)["private_key"]
-        ss58_key = json.loads(key)["ss58_address"]
+        address_dict = self.parse_addresses()
+        weights_dict = self.parse_weights()
+        weights_dict = self.check_weights(selfuid, weights_dict, address_dict)
 
-        key = Keypair(ss58_address=ss58_key, private_key=private_key)
+        keys_dict = self.parse_keys()
 
-        c_client.vote(key, uids, weights, netuid=10)
+        sample_result = await self.get_sample_result()
+        prompt_message = Message(content=str(sample_result), role="user")
+        encoding = tokenizer.embedding_function.encode(str(sample_result))
 
-    async def validation_loop(self):
-        """
-        Asynchronously runs a validation loop that continuously checks the status of miners and their responses.
+        similiarity_dict = await self.get_similairities(
+            selfuid, encoding, prompt_message, address_dict
+        )
+        score_dict = self.score_modules(
+            weights_dict, address_dict, keys_dict, similiarity_dict
+        )
 
-        This function does not take any parameters.
+        logger.info("\nLoading key")
+        uids = []
+        weights = []
 
-        The validation loop runs indefinitely and performs the following steps:
-        1. Retrieves a sample result from the `get_sample_result` method.
-        2. Extracts the length of the sample embedding and initializes a zero score list.
-        3. Retrieves the `netuid` and address information from each miner in the `miner_list`.
-        4. Makes a request to each miner to generate a response using the `make_request` method.
-        5. Validates the input using the `validate_input` method and stores the scores in the `score_dict`.
-        6. Adjusts the scores using the `threshold_sigmoid_reward_distribution` function.
-        7. Calculates the total score and weighted scores.
-        8. Sets the weights for each miner using the `set_weights` method.
+        for uid, weight in score_dict.items():
+            if uid == selfuid:
+                continue
+            uids.append(uid)
+            weights.append(weight)
+        logger.debug(f"\nuids: {uids}\nweights: {weights}")
+        # comx.vote(key=keypair, netuid=10, weights=weights, uids=uids)
 
-        This function does not return any values.
-        """
-        logger.info("\nStarting validation loop")
         time.sleep(60)
-        ss58address = ""
+
+    def run_voteloop(self):
         while True:
-            logger.info("\nGetting sample to compare...")
-            sample_embedding, message = await self.get_sample_result()
-            length = len(sample_embedding)
-            zero_score = [0.00000000000000001 for _ in range(length)]
-            score_dict = {}
-            msg = message
-            logger.info("\nQuerying miners...")
-            try:
-                self.miner_list = self.get_queryable_miners()  # type: ignore
-            except Exception as e:
-                logger.error(f"\nMiner list not found: {e}")
+            asyncio.run(self.validate_loop())
 
-            logger.debug(f"\nChecking miners:\n {self.checking_list}")
-            for miner_info in self.miner_list:
-                print(miner_info)
-                uid = miner_info["netuid"]  # type: ignore
-                address_info = miner_info["address"]  # type: ignore
-                miner_host = address_info[0]
-                miner_port = address_info[1]
-                miner_responses = {}
-
-                try:
-                    logger.info(f"\nMiner: {uid} - {miner_host}:{miner_port}")
-                    miner_response = await self.make_request(
-                        messages=[msg],
-                        input_url=f"http://{miner_host}:{miner_port}/generate",
-                    )
-                    miner_responses[uid] = miner_response
-                    logger.debug(f"\nMiner responses:\n {miner_responses}")
-
-                except Exception as e:
-                    logger.debug(f"\nMiner not found: {e}")
-                    miner_responses[uid] = zero_score
-            for uid, miner_response in miner_responses.items():
-                try:
-                    score = self.validate_input(
-                        embedding1=miner_response, embedding2=sample_embedding
-                    )
-                    logger.debug(f"\nMiner: {uid}\nScore: {score}")
-
-                    score_dict[uid] = score
-                except ValueError as e:
-                    logger.debug(f"\nScore not found: {e}")
-                    score_dict[uid] = 0.00000000000000001
-
-                logger.debug(f"\n Score: {score}.")
-
-            logger.debug(f"\nScore dict:\n{score_dict}")
-            adjusted_scores = threshold_sigmoid_reward_distribution(score_dict)
-            logger.debug(f"\nAdjusted scores:\n{adjusted_scores}")
-            total_scores: float | Literal[0] = sum(adjusted_scores.values())
-            weighted_scores: dict[int, int] = {
-                miner: int(score * 1000 / total_scores)
-                for miner, score in adjusted_scores.items()
-                if score != 0
-            }
-
-            if not weighted_scores:
-                logger.info(
-                    "\nNo effective weights found after adjustment. Please try again later."
-                )
-
-            logger.debug(f"\nFully adjusted scores:\n{adjusted_scores}")
-
-            try:
-                logger.info("voting on weighted scores")
-                uids = list(weighted_scores.keys())
-                weights = list(weighted_scores.values())
-                print(uids, weights)
-                self.set_weights(uids=uids, weights=weights)
-            except Exception:
-                logger.error("\nConnection error")
-
-    async def serve(self) -> None:
+    def parse_addresses(self):
         """
-        Starts the validator server and handles validator tasks asynchronously.
+        Parses addresses and returns the result from comx.query_map_address with netuid 10.
+        """
+        logger.info("\nParsing addresses")
+        return comx.query_map_address(netuid=10)
 
-        This function initializes a FastAPI application and adds CORS middleware to allow cross-origin requests.
-        It then runs the application using the Uvicorn server.
+    def parse_weights(self):
+        """
+        Parses existing weights and creates a dictionary mapping UID to weight.
 
         Parameters:
-            self (Validator): The instance of the Validator class.
+            None
 
         Returns:
-            None: This function does not return anything.
+            dict: A dictionary mapping UID to weight based on the existing weights.
         """
-        logger.info("starting validator server")
+        logger.info("\nParsing existing weights")
+        # sourcery skip: dict-comprehension, identity-comprehension, inline-immediately-returned-variable
+        weights = comx.query_map_weights(netuid=10)[1]
+        weight_dict = {}
+        for uid, weight in weights:  # type: ignore
+            if uid not in weight_dict:
+                weight_dict[uid] = weight
+        return weight_dict
 
-        app = FastAPI()
-        app.add_middleware(
-            CORSMiddleware,
-            allow_origins=["*"],
-            allow_credentials=True,
-            allow_methods=["*"],
-            allow_headers=["*"],
-        )
-        uvicorn.run(app, host=self.host, port=self.port)
+    def parse_stake(self):
+        """
+        A function that parses stake information and returns the result from comx.query_map_stake with netuid 10.
+        """
+        logger.info("\nParsing stake")
+        return comx.query_map_stake(netuid=10)
+
+    def check_weights(self, selfuid, weights, addresses):
+        """
+        Checks for unranked weights and assigns a default weight of 30 to the missing weights.
+
+        Parameters:
+            selfuid: The unique identifier of the validator.
+            weights: A dictionary mapping UID to weight.
+            addresses: A dictionary containing addresses of validators.
+
+        Returns:
+            dict: A dictionary with updated weights.
+        """
+        logger.info("\nChecking for unranked weights")
+        for uid, _ in addresses.items():
+            if uid not in weights and uid != selfuid:
+                weights[uid] = 30
+
+        return weights
+
+    def parse_keys(self):
+        """
+        A function that parses keys and returns the result from comx.query_map_key with netuid 10.
+        """
+        logger.info("\nParsing keys")
+        return comx.query_map_key(netuid=10)
+
+    def scale_numbers(self, numbers):
+        """
+        A function that scales a list of numbers between 0 and 1 based on their minimum and maximum values.
+
+        Parameters:
+            self: The instance of the class.
+            numbers: A list of numbers to be scaled.
+
+        Returns:
+            list: A list of scaled numbers between 0 and 1.
+        """
+        logger.info("\nScaling numbers")
+        min_value = min(numbers)
+        max_value = max(numbers)
+        return [(number - min_value) / (max_value - min_value) for number in numbers]
+
+    def list_to_dict(self, list):
+        """
+        A function that converts a list into a dictionary where the index of each element is the key.
+
+        Parameters:
+            self: The instance of the class.
+            list: A list to be converted into a dictionary.
+
+        Returns:
+            dict: A dictionary where the keys are the indices of the list elements and the values are the elements themselves.
+        """
+        return {i: list[i] for i in range(len(list))}
+
+    def scale_dict_values(self, dictionary):
+        """
+        A function that scales the values of a dictionary between 0 and 1 based on their minimum and maximum values.
+
+        Parameters:
+            self: The instance of the class.
+            dictionary: A dictionary with numeric values to be scaled.
+
+        Returns:
+            dict: A dictionary with the scaled values between 0 and 1.
+        """
+        logger.info("\nScaling dictionary values")
+        return {
+            key: (value - min(dictionary.values()))
+            / (max(dictionary.values()) - min(dictionary.values()))
+            for key, value in dictionary.items()
+        }
+
+    def score_modules(self, weights_dict, staketos_dict, keys_dict, similairity_dict):
+        """
+        Calculates the scores for modules based on weights, staketos, keys, and similarity values.
+
+        Parameters:
+            self: The instance of the class.
+            weights_dict (dict): A dictionary containing weights for each module.
+            staketos_dict (dict): A dictionary containing staketos for each module.
+            keys_dict (dict): A dictionary containing keys for each module.
+            similarity_dict (dict): A dictionary containing similarity values for each module.
+
+        Returns:
+            dict: A dictionary containing the calculated scores for each module.
+        """
+        logger.info("\nCalculating scores")
+        staketos = {}
+        for uid, key in keys_dict.items():
+            if key in staketos_dict:
+                staketo = staketos_dict[key]
+                staketos[uid] = staketo
+        scaled_staketos_dict = self.scale_dict_values(staketos)
+        scaled_weight_dict = self.scale_dict_values(weights_dict)
+        scaled_similairity_dict = self.scale_dict_values(similairity_dict)
+        scaled_scores = {}
+        for uid in keys_dict.keys():
+            if uid in scaled_staketos_dict:
+                stake = scaled_staketos_dict[uid]
+            calculated_score = (
+                scaled_weight_dict[uid] * 0.4
+                + stake * 0.2
+                + scaled_similairity_dict[uid] * 0.2
+            ) 
+            scaled_scores[uid] = calculated_score
+        scaled_score = self.scale_dict_values(scaled_scores)
+        print(scaled_score)
+        return scaled_score
