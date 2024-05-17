@@ -23,7 +23,7 @@ Internet connection
 
 The easiest way to launch miners and validators is using the launcher.sh script if you're on linux.
 
-`chmod -x launcher.sh` 
+`chmod +x launcher.sh` 
 `bash launcher.sh`
 
 Simpily follow the prompts. You information will be requested along with the correct format of that information. Select `deploy` to *serve* and *register* the validator or miner otherwise select `serve` or `register` to serve or register the module respectively. 
@@ -35,7 +35,7 @@ Simpily follow the prompts. You information will be requested along with the cor
 Base miner is in the [miner](eden_subnet/miner/miner.py) folder. Copy the class `Miner` and pass it the `MinerSettings` class to deploy your own version. The repo references the position of the miner class and the file it resides in through a naming convention of the miner. Use <FILE_NAME>.<CLASS_NAME> for both the name of the key you are staking with and the file/class name of the code to your miner. 
 To launch your miner you need to open a new python script in `eden_subnet/miner` and inherit the miner with a new class. You can see an example of this [here](eden_subnet/miner/eden.py)
 ```#python
-from edne_subnet.miner.miner import Miner, MinerSettings
+from eden_subnet.miner.miner import Miner, MinerSettings
 from communex.compat.key import Keypair
 
 # Your configuration
