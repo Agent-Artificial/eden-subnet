@@ -438,8 +438,8 @@ class Validator:
         for uid, address in addresses.items():
             if uid == selfuid:
                 continue
-            url = f"https://{address}/generate"
-            if f"https://{self.host}:{self.port}/generate" == url:
+            url = f"http://{address}/generate"
+            if f"http://{self.host}:{self.port}/generate" == url:
                 continue
             try:
                 response = await self.make_request(
@@ -449,7 +449,7 @@ class Validator:
                 miner_responses[uid] = self.validate_input(encoding, response)
             except Exception as e:
                 logger.debug(f"\nError getting similairities: {e}\n{e.args}\n")
-
+            time.sleep(10)
         return miner_responses
 
     async def validate_loop(self):
@@ -633,9 +633,11 @@ class Validator:
             if uid in scaled_staketos_dict:
                 stake = scaled_staketos_dict[uid]
             calculated_score = (
-                scaled_weight_dict[uid] * 0.2
+                scaled_weight_dict[uid] * 0.4
                 + stake * 0.2
-                + scaled_similairity_dict[uid] * 0.6
-            ) / 3
+                + scaled_similairity_dict[uid] * 0.2
+            ) 
             scaled_scores[uid] = calculated_score
-        return self.scale_dict_values(scaled_scores)
+        scaled_score = self.scale_dict_values(scaled_scores)
+        print(scaled_score)
+        return scaled_score
