@@ -70,6 +70,7 @@ So for our example with the miner we would provide our actual ip address and cop
 
 `comx module register miner.Miner miner.Miner 66.224.58.25 10010 --netuid 10 --stake 256`
 
+
 ## Notes
 
 There is a global burn fee for registering modules(miners and validators are both modules) based on demand. Currently the base rate is 10com and it doubles every threshold amount reached per epoch. You'll want to ensure you have enough to cover that cost for miners. 

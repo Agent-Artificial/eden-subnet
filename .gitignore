@@ -3,10 +3,12 @@
 .env
 **/__pycache__
 **/**/__pycache__
+**/**/**/__pycache__
 websocket-client
 testing.py
 unstake.py
 voting.py
 voting2.py
 voting3.py
-tests/voting_tests
+tests/voting_tests/test_voting.py
+.pytest_cache
