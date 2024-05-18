@@ -12,3 +12,5 @@ substrate-interface
 communex
 python-dotenv
 eth-typing
+git+https://github.com/websocket-client/websocket-client
+

@@ -51,6 +51,7 @@ Simpily follow the prompts. You information will be requested along with the cor
 
 Base miner is in the [miner](eden_subnet/miner/miner.py) folder. Copy the class `Miner` and pass it the `MinerSettings` class to deploy your own version. The repo references the position of the miner class and the file it resides in through a naming convention of the miner. Use <FILE_NAME>.<CLASS_NAME> for both the name of the key you are staking with and the file/class name of the code to your miner. 
 To launch your miner you need to open a new python script in `eden_subnet/miner` and inherit the miner with a new class. You can see an example of this [here](eden_subnet/miner/eden.py)
+
 ```#python
 from eden_subnet.miner.miner import Miner, MinerSettings
 from communex.compat.key import Keypair
@@ -75,8 +76,8 @@ my_miner = YourClassName(settings)
 my_miner.serve()
 ```
 
-
 `python -m eden_subnet.miner.miner`
+
 That command will serve a miner listening on all ip addresses(use 0.0.0.0 for serving and your machines actual ip for registering) on port 10001. The miner code is located in `eden_subnet.miner.miner` and inside of that script there is a class called `Miner` that is being served.
 
 Ensure the key has the same name and the file in the miner directory has the first word of your miner name and the class inside of that file is the second. Open the port and you should be good to go. 
@@ -124,6 +125,7 @@ Once you confirm that you can run the validator and/or miner you need to registe
 So for our example with the miner we would provide our actual ip address and copy the information accordingly
 
 `comx module register miner.Miner miner.Miner 66.224.58.25 10010 --netuid 10 --stake 256`
+
 
 ## Notes
 
