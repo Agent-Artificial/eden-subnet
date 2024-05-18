@@ -388,11 +388,12 @@ class Validator:
         vec2_norm = vec2 / np.linalg.norm(vec2)
 
         # Calculating cosine distance
-        cosine_distance = 1 -cosine(vec1_norm, vec2_norm) * 99 + 99
-        if cosine_distance < 0:
-            cosine_distance = 1
+        cosine_distance = cosine(vec1_norm, vec2_norm)
         logger.debug(f"\ncosine distance: {cosine_distance}")
-        return round(cosine_distance - 30)
+
+        normalized_similiarity = cosine_distance + 1
+        logger.debug(f"\nnormalized similarity: {normalized_similiarity}")
+        return normalized_similiarity
 
     def validate_input(self, embedding1, embedding2):
         """
@@ -416,10 +417,11 @@ class Validator:
             response = self.cosine_similarity(
                 embedding1=embedding1, embedding2=embedding2
             )
+            logger.debug(f"\nsimilarity result: {response}...")
             result = round(response, 2)
         except Exception as e:
             logger.error(f"\ncould not connect to miner, adjusting score.\n{e}")
-            result = 1
+            result = 0.001
         return result
 
     async def get_similairities(self, selfuid, encoding, prompt_message, addresses):
@@ -482,7 +484,7 @@ class Validator:
         score_dict = self.score_modules(
             weights_dict, address_dict, keys_dict, similiarity_dict
         )
-        logger.debug(score_dict)
+
         logger.info("\nLoading key")
         uids = []
         weights = []
@@ -632,7 +634,6 @@ class Validator:
         scaled_similairity_dict = self.scale_dict_values(similairity_dict)
         scaled_scores = {}
         for uid in keys_dict.keys():
-            
             if uid in scaled_staketos_dict:
                 stake = scaled_staketos_dict[uid]
             calculated_score = (
@@ -641,8 +642,6 @@ class Validator:
                 + scaled_similairity_dict[uid] * 0.2
             ) 
             scaled_scores[uid] = calculated_score
-            logger.debug(f"UID: {uid}\nScore: {calculated_score}")
-            
         scaled_score = self.scale_dict_values(scaled_scores)
         print(scaled_score)
         return scaled_score
