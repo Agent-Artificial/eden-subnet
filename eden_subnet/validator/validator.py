@@ -334,9 +334,9 @@ class Validator:
             result = response.json()["choices"][0]["message"]["content"]
 
         except Exception as e:
-            logger.error(f"\nError making request:\n{e}")
+            logger.debug(f"\nError making request:\n{e}")
             if input_url != str(os.getenv("AGENTARTIFICIAL_URL")):
-                result = "No response made. Please try again."
+                result = []
 
         return result
 
@@ -406,19 +406,22 @@ class Validator:
         Returns:
             The result of the validation after evaluating the similarity.
         """
+        result = None
+        
         logger.info("\nEvaluating sample similarity")
-        if not embedding1 and len(embedding2) != 0:
-            embedding1 = [[0] for _ in range(len(embedding2))]
-        result = 0.0
+        if not embedding2 and len(embedding1) != 0:
+            zero_score = [0 for _ in range(len(embedding1))]
+            embedding2=zero_score
+        
         try:
             response = self.cosine_similarity(
                 embedding1=embedding1, embedding2=embedding2
             )
-            logger.debug(f"\nsimilarity result: {result}...")
+            logger.debug(f"\nsimilarity result: {response}...")
             result = round(response, 2)
         except Exception as e:
             logger.error(f"\ncould not connect to miner, adjusting score.\n{e}")
-            result = 0.01
+            result = 0.001
         return result
 
     async def get_similairities(self, selfuid, encoding, prompt_message, addresses):
@@ -436,6 +439,7 @@ class Validator:
         """
         miner_responses = {}
         for uid, address in addresses.items():
+            logger.info(f"\nGetting similairities - {uid}")
             if uid == selfuid:
                 continue
             url = f"http://{address}/generate"
@@ -484,15 +488,15 @@ class Validator:
         logger.info("\nLoading key")
         uids = []
         weights = []
-
+        
         for uid, weight in score_dict.items():
             if uid == selfuid:
                 continue
             uids.append(uid)
             weights.append(weight)
         logger.debug(f"\nuids: {uids}\nweights: {weights}")
-        # comx.vote(key=keypair, netuid=10, weights=weights, uids=uids)
-
+        comx.vote(key=Keypair(self.key_name), netuid=10, weights=weights, uids=uids)
+        logger.warning("Voted")
         time.sleep(60)
 
     def run_voteloop(self):
