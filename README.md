@@ -22,29 +22,61 @@ Example:
 `cp eden_subnet/miner/eden.py eden_subnet/miner/my_miner.py`
 
 Inside of that file you need to change the class name from  `Miner_1` to whatever you want the second part of the name to be.
-
-Example:
-```class Miner_1(Miner):    >    class BobTheMiner(Miner): ...
-    ...                           ...
-```
-
 that determines the key name and module path so in the example it would be 
-my_miner.BobTheMiner
+find `class Miner_1(Miner):` which turns into `class BobTheMiner(Miner):`
 then you need to make a key
-comx key create my_miner.BobTheMiner
+`comx key create my_miner.BobTheMiner`
 then you need to register the miner 
-comx module register my_miner.BobTheMiner my_miner.BobTheMiner 66.235.35.363 8000 --netuid 10
+`comx module register my_miner.BobTheMiner my_miner.BobTheMiner 66.235.35.363 8000 --netuid 10`
 after that you need to serve it with
-python -m eden_subnet.cli --key_name my_miner.BobTheMiner my_miner.BobTheMiner --host 0.0.0.0 --port 8000
-or you can call the file directly 
-python -m eden_subnet/miner/my_miner --key_name my_miner.BobTheMiner --host 0.0.0.0 --port 8000
+`python -m eden_subnet.miner.my_miner --key_name my_miner.BobTheMiner --host 0.0.0.0 --port 8000`
+=======
+## Minimum Requirements
+
+**VRAM**: min 8gb
+Internet connection
+
+## Launcher
+
+The easiest way to launch miners and validators is using the launcher.sh script if you're on linux.
+
+`chmod +x launcher.sh` 
+`bash launcher.sh`
+
+Simpily follow the prompts. You information will be requested along with the correct format of that information. Select `deploy` to *serve* and *register* the validator or miner otherwise select `serve` or `register` to serve or register the module respectively. 
+*Serving* means you are making your module available to the network for use. Use host `0.0.0.0` when serving, this means your module will listen on all ips on the local system. 
+*Registering* means you are writing to the blockchain that your module is *served* and available for sure. This is the step where you pay burn and stake the correct balance for your module. 
 
 ## Embedding Miner
 
 Base miner is in the [miner](eden_subnet/miner/miner.py) folder. Copy the class `Miner` and pass it the `MinerSettings` class to deploy your own version. The repo references the position of the miner class and the file it resides in through a naming convention of the miner. Use <FILE_NAME>.<CLASS_NAME> for both the name of the key you are staking with and the file/class name of the code to your miner. 
-To launch your miner run 
-`python -m eden_subnet.cli serve-miner miner.Miner miner.Miner 0.0.0.0 10001`
+To launch your miner you need to open a new python script in `eden_subnet/miner` and inherit the miner with a new class. You can see an example of this [here](eden_subnet/miner/eden.py)
+```#python
+from eden_subnet.miner.miner import Miner, MinerSettings
+from communex.compat.key import Keypair
 
+# Your configuration
+# replace these values with the values of your miner
+settings = MinerSettings(
+    key_name = "my_file_name.MyClassName", 
+    module_path = "my_file_name.MyClassName",
+    host = "0.0.0.0",
+    port = 10001
+)
+# Inherit the Miner class into a new miner
+class YourClassName(Miner):
+    def __init__(self, configuration: MinerSettings):
+        super().__init__.py(configuration)
+
+# Instantiate the miner passing it the settings you configured. 
+my_miner = YourClassName(settings)
+
+# Serve the miner
+my_miner.serve()
+```
+
+
+`python -m eden_subnet.miner.miner`
 That command will serve a miner listening on all ip addresses(use 0.0.0.0 for serving and your machines actual ip for registering) on port 10001. The miner code is located in `eden_subnet.miner.miner` and inside of that script there is a class called `Miner` that is being served.
 
 Ensure the key has the same name and the file in the miner directory has the first word of your miner name and the class inside of that file is the second. Open the port and you should be good to go. 
@@ -55,8 +87,31 @@ There is also a docker compose that will deploy validators and miners. You will 
 
 The Validator generates a random allegory based on some topics that change regularly and produces embeddings locally before making a request to a miner. It then compares the two using a semantic similarity of the vectors and provides a score. Then it takes the scores of the whole subnet and calculates your position based on how well your embedder did and how that stands up against the rest of the subnet adjusting the weights accordingly.
 
+```#python
+from edne_subnet.validator.validator import Validator, ValidatorSettings
+from communex.compat.key import Keypair
+
+# Your configuration
+# replace these values with the values of your miner
+settings = ValidatorSettings(
+    key_name = "my_file_name.MyClassName", 
+    module_path = "my_file_name.MyClassName",
+    host = "0.0.0.0",
+    port = 10010
+)
+# Inherit the Valdiator class into a new miner
+class YourClassName(Validator):
+    def __init__(self, configuration: MinerSettings):
+        super().__init__.py(configuration)
+
+# Instantiate the miner passing it the settings you configured. 
+my_miner = YourClassName(settings)
+
+# Serve the miner
+my_miner.serve()
+```
 The validator is served similarly to the miner with 
-`python -m eden_subnet.cli server-validator validator.Validator validator.Validator 0.0.0.0 10010`
+`python -m eden_subnet.validator.your_file_name your_file_name.YourClassName your_file_name.YourClassName 0.0.0.0 10010`
 
 Like the miner the validator will serve the class `Validator` which lives in a folder `eden_subnet.validator.validator` and provide that on port 10010 listening on all ip's
 
