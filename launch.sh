@@ -4,8 +4,8 @@
 
 set -e
 
-source_miner="eden_subnet/miner/miner.py"
-source_validator="eden_subnet/validator/validator.py"
+source_miner="eden_subnet/miner/eden.py"
+source_validator="eden_subnet/validator/eden.py"
 
 # Configures the module launch
 configure_launch() {
@@ -229,7 +229,7 @@ transfer_balance() {
 # Function to serve a miner
 serve_miner() {
     echo "Serving Miner"
-    pm2 start "python -m eden_subnet.miner.$filename --key_name $key_name --host $host --port $port" --name "$module_path"
+    pm2 start "python -m eden_subnet.miner.$filename --key_name $key_name --host $host --port $port" -n "$Module_path"
     echo "Miner served."
 }
 
@@ -252,7 +252,7 @@ deploy_miner() {
 # Function to serve a validator
 serve_validator() {
     echo "Serving Validator"
-    pm2 start "python -m eden_subnet.validator.$filename --key_name $key_name --host $host --port $port" --name "$module_path"
+    python -m eden_subnet.validator."$filename" --key_name "$key_name" --host "$host" --port "$port"
     echo "Validator served."
 }
 

@@ -140,11 +140,11 @@ class Validator_4(Validator):
 
 
 validator_map = {
-    "eden.Validator_0": Validator_0,
-    "eden.Validator_1": Validator_1,
-    "eden.Validator_2": Validator_2,
-    "eden.Validator_3": Validator_3,
-    "eden.Validator_4": Validator_4,
+    args.key_name: Validator_0,
+    args.key_name: Validator_1,
+    args.key_name: Validator_2,
+    args.key_name: Validator_3,
+    args.key_name: Validator_4,
 }
 
 # Stager the validators for multiple instances
