@@ -71,6 +71,7 @@ def serve_modules(module_path, source_module, port, NumModules, Netuid):
         filename, classname = module_path_check(module_path)
         classname_instance = f"{classname}_{i}"
         module_name = f"{module_path}_{i}"
+        next_port = port + i
 
         key_path = os.path.expanduser(f"~/.commune/key/{module_name}.json")
         if not os.path.isfile(key_path):
@@ -88,7 +89,7 @@ def serve_modules(module_path, source_module, port, NumModules, Netuid):
         copy_and_rename_class(new_file_path, "Miner", classname_instance)
 
         print("Serving Miner")
-        command = f'pm2 start "python -m eden_subnet.miner.{filename} --key_name {module_name} --host 0.0.0.0 --port {port}" --name "{module_name}"'
+        command = f'pm2 start "python -m eden_subnet.miner.{filename} --key_name {module_name} --host 0.0.0.0 --port {next_port}" --name "{module_name}"'
         os.system(command)
         print("Miner served.")
 
@@ -132,7 +133,7 @@ def register(module_path, wan_ip, port, NumModules, Netuid):
 
         print("Register new miner key")
         subprocess.run(["comx", "module", "register", "--ip", wan_ip, "--port", f"{next_port}", "--stake", "300", module_name, module_name, "--netuid", f"{Netuid}"])
-        print(f"Registered {module_name} at {wan_ip}:{port}")
+        print(f"Registered {module_name} at {wan_ip}:{next_port}")
         sleep(10)
 
         print("Remove Temp Stake from new miner")
