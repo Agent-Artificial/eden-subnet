@@ -5,7 +5,8 @@ import json
 import os
 import re
 import shutil
-
+from communex.compat.key import Ss58_address
+from loguru import logger
 
 # Set the environment variable
 os.environ['COMX_YES_TO_ALL'] = 'true'
@@ -118,6 +119,9 @@ def get_ss58_address(name):
     except json.JSONDecodeError:
         print("Error decoding JSON")
         return None
+    except Exception as e: 
+        logger.error(f"Error procesing thing:\n{e}")
+        return None
 
 def register(module_path, wan_ip, port, NumModules, Netuid):
 
@@ -126,9 +130,10 @@ def register(module_path, wan_ip, port, NumModules, Netuid):
         key = "module"
         module_name = f"{module_path}_{i}"
         next_port = port + i
+        ss58 = Ss58_address(module_name)
         print("Port: ", next_port)
         print("Transfer Com to new miner key")
-        subprocess.run(["comx", "balance", "transfer", key, "305", get_ss58_address(module_name)])
+        subprocess.run(["comx", "balance", "transfer", key, "305", ss58])
         sleep(10)
 
         print("Register new miner key")
@@ -137,12 +142,12 @@ def register(module_path, wan_ip, port, NumModules, Netuid):
         sleep(10)
 
         print("Remove Temp Stake from new miner")
-        subprocess.run(["comx", "balance", "unstake",  module_name, "250", get_ss58_address(module_name), "--netuid", f"{Netuid}"])
+        subprocess.run(["comx", "balance", "unstake",  module_name, "250", ss58, "--netuid", f"{Netuid}"])
         print(f"Stake Removed")
         sleep(10)
 
         print("Send fund back from new miner")
-        subprocess.run(["comx", "balance", "transfer",  module_name, "250", get_ss58_address("module")])
+        subprocess.run(["comx", "balance", "transfer",  module_name, "250", ss58])
         print(f"Funds send")
         sleep(10)
             
@@ -152,8 +157,9 @@ def register(module_path, wan_ip, port, NumModules, Netuid):
         #sleep(5)
 
         # Wait before repeating the registration process
+        print("Register loop: f{i}")
         sleep(60)
-        print("loop")
+        
 
 
 if __name__ == "__main__":
