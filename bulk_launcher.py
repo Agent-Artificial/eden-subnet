@@ -17,13 +17,13 @@ os.environ['COMX_OUTPUT_JSON'] = 'true'
 def copy_and_rename_class(filename, original_classname, new_classname):
     with open(filename, 'r') as file:
         lines = file.readlines()
-    
+
     class_found = False
     new_lines = []
     class_lines = []
     inside_class = False
     class_indent = None
-    
+
     for line in lines:
         new_lines.append(line)
         if not class_found and re.match(rf'^\s*class {original_classname}', line):
@@ -37,7 +37,7 @@ def copy_and_rename_class(filename, original_classname, new_classname):
                 inside_class = False
             else:
                 class_lines.append(line)
-    
+
     # Rename the copied class
     if class_lines:
         class_lines[0] = class_lines[0].replace(original_classname, new_classname, 1)
@@ -46,7 +46,7 @@ def copy_and_rename_class(filename, original_classname, new_classname):
         new_lines.append("\n")
     else:
         raise ValueError(f"Class {original_classname} not found in {filename}")
-    
+
     # Write the new content back to the file
     with open(filename, 'w') as file:
         file.writelines(new_lines)
@@ -133,24 +133,40 @@ def register(module_path, wan_ip, port, NumModules, Netuid):
         ss58 = Ss58_address(module_name)
         print("Port: ", next_port)
         print("Transfer Com to new miner key")
-        subprocess.run(["comx", "balance", "transfer", key, "305", ss58])
+        try:
+            value = subprocess.run(["comx", "balance", "transfer", key, "305", ss58], check=True, stout=subprocess.PIPE, stderr=subprocess.PIPE)
+            print(value.stout)
+        except Exception as e:
+            print(value.stderr)
         sleep(10)
 
         print("Register new miner key")
-        subprocess.run(["comx", "module", "register", "--ip", wan_ip, "--port", f"{next_port}", "--stake", "300", module_name, module_name, "--netuid", f"{Netuid}"])
+        try:
+            value = subprocess.run(["comx", "module", "register", "--ip", wan_ip, "--port", f"{next_port}", "--stake", "300", module_name, module_name, "--netuid", f"{Netuid}"], check=True, stout=subprocess.PIPE, stderr=subprocess.PIPE)
+            print(value.stout)
+        except Exception as e:
+            print(value.stderr)        
         print(f"Registered {module_name} at {wan_ip}:{next_port}")
         sleep(10)
 
         print("Remove Temp Stake from new miner")
-        subprocess.run(["comx", "balance", "unstake",  module_name, "250", ss58, "--netuid", f"{Netuid}"])
+        try:
+            value = subprocess.run(["comx", "balance", "unstake",  module_name, "250", ss58, "--netuid", f"{Netuid}"], check=True, stout=subprocess.PIPE, stderr=subprocess.PIPE)
+            print(value.stout)
+        except Exception as e:
+            print(value.stderr)            
         print(f"Stake Removed")
         sleep(10)
 
         print("Send fund back from new miner")
-        subprocess.run(["comx", "balance", "transfer",  module_name, "250", ss58])
+        try:
+            value = subprocess.run(["comx", "balance", "transfer",  module_name, "250", ss58], check=True, stout=subprocess.PIPE, stderr=subprocess.PIPE)
+            print(value.stout)
+        except Exception as e:
+            print(value.stderr)            
         print(f"Funds send")
         sleep(10)
-            
+
         #print("Test call miner")
         # c call model.openrouter::cool2/generate hey
         #subprocess.run(["c", "call", module_name+"/generate", "hey"])
@@ -159,7 +175,7 @@ def register(module_path, wan_ip, port, NumModules, Netuid):
         # Wait before repeating the registration process
         print("Register loop: f{i}")
         sleep(60)
-        
+
 
 
 if __name__ == "__main__":
