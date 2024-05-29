@@ -5,7 +5,7 @@ import json
 import os
 import re
 import shutil
-from communex.compat.key import Ss58_address
+from communex.compat.key import Ss58Address
 from loguru import logger
 
 # Set the environment variable
@@ -69,11 +69,13 @@ def serve_modules(module_path, source_module, port, NumModules, Netuid):
 
     for i in range(NumModules):
 
+        # Separates by filename and classname (by the dot)
         filename, classname = module_path_check(module_path)
         classname_instance = f"{classname}_{i}"
         module_name = f"{module_path}_{i}"
-        next_port = port + i
+        next_port = port
 
+        # Create keys for the modules if they don't exist
         key_path = os.path.expanduser(f"~/.commune/key/{module_name}.json")
         if not os.path.isfile(key_path):
             subprocess.run(["comx", "key", "create", module_name])
@@ -93,6 +95,8 @@ def serve_modules(module_path, source_module, port, NumModules, Netuid):
         command = f'pm2 start "python -m eden_subnet.miner.{filename} --key_name {module_name} --host 0.0.0.0 --port {next_port}" --name "{module_name}"'
         os.system(command)
         print("Miner served.")
+
+        next_port = port + i
 
 
 def get_ss58_address(name):
@@ -130,40 +134,41 @@ def register(module_path, wan_ip, port, NumModules, Netuid):
         key = "module"
         module_name = f"{module_path}_{i}"
         next_port = port + i
-        ss58 = Ss58_address(module_name)
+        ss58 = Ss58Address(module_name)
         print("Port: ", next_port)
         print("Transfer Com to new miner key")
         try:
-            value = subprocess.run(["comx", "balance", "transfer", key, "305", ss58], check=True, stout=subprocess.PIPE, stderr=subprocess.PIPE)
-            print(value.stout)
+            value = subprocess.run(["comx", "balance", "transfer", key, "305", ss58], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            print(value.stdout)
         except Exception as e:
-            print(value.stderr)
+            logger.error(f"Error processing thing:\n{e}")
         sleep(10)
 
         print("Register new miner key")
         try:
-            value = subprocess.run(["comx", "module", "register", "--ip", wan_ip, "--port", f"{next_port}", "--stake", "300", module_name, module_name, "--netuid", f"{Netuid}"], check=True, stout=subprocess.PIPE, stderr=subprocess.PIPE)
-            print(value.stout)
+            value = subprocess.run(["comx", "module", "register", "--ip", wan_ip, "--port", f"{next_port}", "--stake", "300", module_name, module_name, "--netuid", f"{Netuid}"], check=True)
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Error registering miner, {e}")
         except Exception as e:
-            print(value.stderr)        
+            logger.error(f"Error processing thing:\n{e}")        
         print(f"Registered {module_name} at {wan_ip}:{next_port}")
         sleep(10)
 
         print("Remove Temp Stake from new miner")
         try:
-            value = subprocess.run(["comx", "balance", "unstake",  module_name, "250", ss58, "--netuid", f"{Netuid}"], check=True, stout=subprocess.PIPE, stderr=subprocess.PIPE)
-            print(value.stout)
+            value = subprocess.run(["comx", "balance", "unstake",  module_name, "250", ss58, "--netuid", f"{Netuid}"], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            print(value.stdout)
         except Exception as e:
-            print(value.stderr)            
+            logger.error(f"Error processing thing:\n{e}")            
         print(f"Stake Removed")
         sleep(10)
 
         print("Send fund back from new miner")
         try:
-            value = subprocess.run(["comx", "balance", "transfer",  module_name, "250", ss58], check=True, stout=subprocess.PIPE, stderr=subprocess.PIPE)
-            print(value.stout)
+            value = subprocess.run(["comx", "balance", "transfer",  module_name, "250", ss58], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            print(value.stdout)
         except Exception as e:
-            print(value.stderr)            
+            logger.error(f"Error processing thing:\n{e}")
         print(f"Funds send")
         sleep(10)
 
@@ -181,11 +186,11 @@ def register(module_path, wan_ip, port, NumModules, Netuid):
 if __name__ == "__main__":
     source_miner="eden_subnet/miner/miner.py"
     source_validator="eden_subnet/validator/validator.py"
-    module_path="aliens.alienware"
+    module_path="z90.studio"
     source_module=source_miner
-    wan_ip="72.220.238.205"
-    port=25005
-    NumModules=200
+    wan_ip="199.126.197.240"
+    port=26400
+    NumModules=10
     Netuid=10
 
     serve_modules(module_path=module_path,source_module=source_miner,port=port, NumModules=NumModules, Netuid=Netuid)
