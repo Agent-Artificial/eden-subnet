@@ -232,6 +232,28 @@ class Miner_9(Miner):
             call_timeout=60,
         )
 
+class Miner_10(Miner):
+    def __init__(self, settings: MinerSettings) -> None:
+        """
+        Initializes the MinerSettings with the provided settings.
+
+        Args:
+            settings (MinerSettings): The settings object containing key_name, module_path, host, port, and ss58_address.
+
+        Returns:
+            None
+        """
+        super().__init__(
+            key_name=settings.key_name,
+            module_path=settings.module_path,
+            host=settings.host,
+            port=settings.port,
+            ss58_address=settings.get_ss58_address(settings.key_name),
+            use_testnet=False,
+            call_timeout=60,
+        )
+
+
 # Map the classes to the their names so you can call them with a string.
 miner_map = {
     "Miner_1": Miner_1,

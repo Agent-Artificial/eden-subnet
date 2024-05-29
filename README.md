@@ -145,4 +145,3 @@ It is a subnet of [Commune](https://github.com/commune-ai/commune), an open sour
 
 If you'd like to contribute please make a pull request detailing any changes you've made or open an issue so we can hash out how to make a larger change. 
 
-

@@ -201,7 +201,12 @@ create_key() {
         # shellcheck disable=SC2162
         read -p "Key name: " key_name
     fi
+    if [ -z "$key_name" ]; then
+        echo "Would you like to display your key with secret nmenonic?"
+        read "You will still be able to get the data from your keyfile in ~/.commune/key:  (y/n)"
     comx key create "$key_name"
+    
+
     echo "This is your key. Save the mnemonic somewhere safe."
     cat ~/.commune/key/"$key_name".json
     echo "$key_name created and saved at ~/.commune/key/$key_name.json"
@@ -229,14 +234,14 @@ transfer_balance() {
 # Function to serve a miner
 serve_miner() {
     echo "Serving Miner"
-    pm2 start "python -m eden_subnet.miner.$filename --key_name $key_name --host $host --port $port" -n "$Module_path"
+    pm2 start "python -m eden_subnet.miner.$filename --key_name $key_name --host $host --port $port" -n "$key_name"
     echo "Miner served."
 }
 
 # Function to register a miner
 register_miner() {
     echo "Registering Miner"
-    comx module register "$module_path" "$key_name" --netuid "$netuid" --stake "$stake"
+    comx module register "$module_path" "$key_name" --ip "$host" --port "$port" --netuid "$netuid" --stake "$stake"
     echo "Miner registered."
 }
 
@@ -277,19 +282,19 @@ update_module() {
     echo "Updating Module"
     # This will update the metadata, netuid, and/or delegation fee.
     if [ -z "$netuid" ] && [ -z "$delegation_fee" ] && [ -z "$metadata" ]; then
-        comx module update "$module_path" "$key_name" "$host" "$port"
+        comx module update "$module_path" --ip "$host" --port "$port"
     elif [ -z "$netuid" ]; then
-        comx module update "$module_path" "$key_name" "$host" "$port" --metadata "$metadata" --delegation-fee "$delegation_fee"
+        comx module update "$module_path" -ip "$host" --port "$port" --metadata "$metadata" --delegation-fee "$delegation_fee"
     elif [ -z "$metadata" ]; then
-        comx module update "$module_path" "$key_name" "$host" "$port" --netuid "$netuid" --delegation-fee "$delegation_fee"
+        comx module update "$module_path" --ip "$host" --port "$port" --netuid "$netuid" --delegation-fee "$delegation_fee"
     elif [ -z "$delegation_fee" ]; then
-        comx module update "$module_path" "$key_name" "$host" "$port" --netuid "$netuid" --metadata "$metadata"
+        comx module update "$module_path" --ip "$host" --port "$port" --netuid "$netuid" --metadata "$metadata"
     elif [ -z "$metadata" ] && [ -z "$netuid" ]; then
-        comx module update "$module_path" "$key_name" "$host" "$port" --delegation-fee "$delegation_fee"
+        comx module update "$module_path" --ip "$host" --port "$port" --delegation-fee "$delegation_fee"
     elif [ -z "$netuid" ] && [ -z "$delegation_fee" ]; then
-        comx module update "$module_path" "$key_name" "$host" "$port" --metadata "$metadata"
+        comx module update "$module_path" --ip "$host" --port "$port" --metadata "$metadata"
     else
-        comx module update "$module_path" "$key_name" "$host" "$port" --netuid "$netuid" --metadata "$metadata" --delegation-fee "$delegation_fee"
+        comx module update "$module_path" --ip "$host" --port "$port" --netuid "$netuid" --metadata "$metadata" --delegation-fee "$delegation_fee"
     fi
     echo "Module updated."
 }

@@ -12,3 +12,8 @@ voting2.py
 voting3.py
 tests/voting_tests/test_voting.py
 .pytest_cache
+scripts
+utilities
+
+eden_subnet/miner/user_miners
+eded_subnet/validator/user_validators

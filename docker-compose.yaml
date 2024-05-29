@@ -1,25 +1,25 @@
 services:
-  eden-miner1:
+  yikes-miner-1:
     build: .
     ports:
-      - "10001:10001"
+      - "$PORT:$PORT"
     volumes:
       - .:/code
       - /home/ubuntu/.commune:/root/.commune
     env_file:
       - .env
     environment:
-      - CUDA_VISIBLE_DEVICES=1
+      - CUDA_VISIBLE_DEVICES=$GPU_INDEX
     command:
       - python
       - -m
-      - eden_subnet.miner.eden
+      - eden_subnet.miner.$FILENAME
       - --key_name
-      - eden.Miner_1
+      - $FILENAME.$CLASSNAME
       - --host
-      - "0.0.0.0"
+      - $HOST
       - --port
-      - "10001"
+      - $PORT
     deploy:
       resources:
         reservations:
