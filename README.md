@@ -18,6 +18,17 @@ We are initiating our subnet by deploying simple embedding miners. These miners 
 
 Once you clone the repo you need to copy the `eden.py` file from `eden_subnet/miner/eden.py` to whatever the first part of your name is going to be.
 
+Warning: If you encounter websocket problem likes this:
+0|k1     | ImportError: cannot import name 'create_connection' from 'websocket' (/root/.cache/pypoetry/virtualenvs/eden-subnet-_cSBlTic-py3.10/lib/python3.10/site-packages/websocket/__init__.py)
+Then follow these steps:
+1. Uninstall both websocket and websocket-client
+`pip uninstall websocket websocket-client websocket_client`
+2. Then install the websocket client directly 
+`git clone https://github.com/websocket-client/websocket-client`
+`cd websocket-client`
+`pip install -e .`
+3. Done.
+
 Example: 
 `cp eden_subnet/miner/eden.py eden_subnet/miner/my_miner.py`
 
@@ -38,10 +49,10 @@ Internet connection
 
 ## Launcher
 
-The easiest way to launch miners and validators is using the launcher.sh script if you're on linux.
+The easiest way to launch miners and validators is using the launch.sh script if you're on linux.
 
-`chmod +x launcher.sh` 
-`bash launcher.sh`
+`chmod +x launch.sh` 
+`bash launch.sh`
 
 Simpily follow the prompts. You information will be requested along with the correct format of that information. Select `deploy` to *serve* and *register* the validator or miner otherwise select `serve` or `register` to serve or register the module respectively. 
 *Serving* means you are making your module available to the network for use. Use host `0.0.0.0` when serving, this means your module will listen on all ips on the local system. 
