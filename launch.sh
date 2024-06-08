@@ -4,8 +4,8 @@
 
 set -e
 
-source_miner="eden_subnet/miner/miner.py"
-source_validator="eden_subnet/validator/validator.py"
+source_miner="eden_subnet/miner/eden.py"
+source_validator="eden_subnet/validator/eden.py"
 
 # Configures the module launch
 configure_launch() {
@@ -236,7 +236,7 @@ serve_miner() {
 # Function to register a miner
 register_miner() {
     echo "Registering Miner"
-    comx module register "$module_path" "$key_name" --netuid "$netuid" --stake "$stake"
+    comx module register "$module_path" "$key_name" --netuid "$netuid" --stake "$stake" --ip "$host" --port "$port"
     echo "Miner registered."
 }
 
@@ -277,19 +277,19 @@ update_module() {
     echo "Updating Module"
     # This will update the metadata, netuid, and/or delegation fee.
     if [ -z "$netuid" ] && [ -z "$delegation_fee" ] && [ -z "$metadata" ]; then
-        comx module update "$module_path" "$key_name" "$host" "$port"
+        comx module update --name "$module_path" --ip "$host" --port "$port" "$key_name"
     elif [ -z "$netuid" ]; then
-        comx module update "$module_path" "$key_name" "$host" "$port" --metadata "$metadata" --delegation-fee "$delegation_fee"
+        comx module update --name "$module_path" --ip "$host" --port "$port" --metadata "$metadata" --delegation-fee "$delegation_fee" "$key_name"
     elif [ -z "$metadata" ]; then
-        comx module update "$module_path" "$key_name" "$host" "$port" --netuid "$netuid" --delegation-fee "$delegation_fee"
+        comx module update --name "$module_path" --ip "$host" --port "$port" --netuid "$netuid" --delegation-fee "$delegation_fee" "$key_name"
     elif [ -z "$delegation_fee" ]; then
-        comx module update "$module_path" "$key_name" "$host" "$port" --netuid "$netuid" --metadata "$metadata"
+        comx module update --name "$module_path" --ip "$host" --port "$port" --netuid "$netuid" --metadata "$metadata" "$key_name"
     elif [ -z "$metadata" ] && [ -z "$netuid" ]; then
-        comx module update "$module_path" "$key_name" "$host" "$port" --delegation-fee "$delegation_fee"
+        comx module update --name "$module_path" --ip "$host" --port "$port" --delegation-fee "$delegation_fee" "$key_name"
     elif [ -z "$netuid" ] && [ -z "$delegation_fee" ]; then
-        comx module update "$module_path" "$key_name" "$host" "$port" --metadata "$metadata"
+        comx module update --name "$module_path" --ip "$host" --port "$port" --metadata "$metadata" "$key_name"
     else
-        comx module update "$module_path" "$key_name" "$host" "$port" --netuid "$netuid" --metadata "$metadata" --delegation-fee "$delegation_fee"
+        comx module update --name "$module_path" --ip "$host" --port "$port" --netuid "$netuid" --metadata "$metadata" --delegation-fee "$delegation_fee" "$key_name"
     fi
     echo "Module updated."
 }
