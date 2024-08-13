@@ -1,7 +1,7 @@
 import pytest
 import uvicorn
 from fastapi.testclient import TestClient
-from eden_subnet.miner.miner import app, GenerateRequest, Miner
+from eden_subnet.miner.embedding_module import app, GenerateRequest, Miner
 from eden_subnet.miner.data_models import MinerSettings
 from communex.client import Ss58Address
 
