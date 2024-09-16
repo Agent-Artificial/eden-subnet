@@ -236,7 +236,7 @@ serve_miner() {
 # Function to register a miner
 register_miner() {
     echo "Registering Miner"
-    comx module register "$module_path" "$key_name" --netuid "$netuid" --stake "$stake"
+    comx module register "$module_path" "$key_name" --stake "$stake"
     echo "Miner registered."
 }
 
@@ -259,7 +259,7 @@ serve_validator() {
 # Function to register a validator
 register_validator() {
     echo "Registering Validator"
-    comx module register "$module_path" "$key_name" --ip "$host" --port "$port" --netuid "$netuid" --stake "$stake"
+    comx module register "$module_path" "$key_name" "$netuid" --ip "$host" --port "$port" 
     echo "Validator registered."
 }
 
@@ -281,15 +281,15 @@ update_module() {
     elif [ -z "$netuid" ]; then
         comx module update "$module_path" "$key_name" "$host" "$port" --metadata "$metadata" --delegation-fee "$delegation_fee"
     elif [ -z "$metadata" ]; then
-        comx module update "$module_path" "$key_name" "$host" "$port" --netuid "$netuid" --delegation-fee "$delegation_fee"
+        comx module update "$module_path" "$key_name" "$host" "$port"  --delegation-fee "$delegation_fee"
     elif [ -z "$delegation_fee" ]; then
-        comx module update "$module_path" "$key_name" "$host" "$port" --netuid "$netuid" --metadata "$metadata"
+        comx module update "$module_path" "$key_name" "$host" "$port" --metadata "$metadata"
     elif [ -z "$metadata" ] && [ -z "$netuid" ]; then
         comx module update "$module_path" "$key_name" "$host" "$port" --delegation-fee "$delegation_fee"
     elif [ -z "$netuid" ] && [ -z "$delegation_fee" ]; then
         comx module update "$module_path" "$key_name" "$host" "$port" --metadata "$metadata"
     else
-        comx module update "$module_path" "$key_name" "$host" "$port" --netuid "$netuid" --metadata "$metadata" --delegation-fee "$delegation_fee"
+        comx module update "$module_path" "$key_name" "$host" "$port" --metadata "$metadata" --delegation-fee "$delegation_fee"
     fi
     echo "Module updated."
 }

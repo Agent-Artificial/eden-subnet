@@ -1,6 +1,6 @@
 """This is an example of how you can write a script to launch Validators. Inherit the Validator class into a new Validator and instantiate an instance of that class when you call the script modified by the minter settings to your specificiation. Make sure the file this code is in is the first part of the Validator name. In this example it is eden which is the start of eden. Validator where Validator is the class name."""
 
-from eden_subnet.validator.validator import Validator, ValidatorSettings
+from .validator import Validator, ValidatorSettings
 import argparse
 from loguru import logger
 import asyncio
@@ -140,6 +140,7 @@ class Validator_4(Validator):
 
 
 validator_map = {
+    "eden.Validator": Validator,
     "eden.Validator_0": Validator_0,
     "eden.Validator_1": Validator_1,
     "eden.Validator_2": Validator_2,
@@ -158,5 +159,9 @@ validator_map = {
 logger.info("\nLaunching validator_settings.key_name")
 validator = validator_map[validator_settings.key_name](
     settings=validator_settings,
+    key_name=validator_settings.key_name,
+    module_path=validator_settings.module_path,
+    host=validator_settings.host,
+    port=validator_settings.port,
 )
 validator.run_voteloop()
