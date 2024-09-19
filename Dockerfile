@@ -1,28 +1,31 @@
-FROM nvidia/cuda:12.2.0-runtime-ubuntu22.04
+FROM python:3.10-slim
 
 ENV PYTHONFAULTHANDLER=1 \
 PYTHONUNBUFFERED=1 \
 PYTHONHASHSEED=random \
 PIP_NO_CACHE_DIR=off \
 PIP_DISABLE_PIP_VERSION_CHECK=on \
-PIP_DEFAULT_TIMEOUT=100 \
-POETRY_NO_INTERACTION=1 \
-POETRY_VIRTUALENVS_CREATE=false \
-POETRY_CACHE_DIR='/var/cache/pypoetry' \
-POETRY_HOME='/usr/local' \
-POETRY_VERSION=1.8.2
+PIP_DEFAULT_TIMEOUT=100 
 
 RUN apt-get update && \
-    apt-get install -y git curl python3-pip python3-dev python-is-python3 && \
+    apt-get install -y bash python3 python3-venv python3-pip python3-dev python-is-python3 build-essential git  && \
     rm -rf /var/lib/apt/lists/*
 
-RUN curl -sSL https://install.python-poetry.org | python3 -
-
-WORKDIR /code
-COPY poetry.lock pyproject.toml /code/
-
-RUN poetry install --only=main --no-interaction --no-ansi --no-root
+COPY .venv /code/.venv
 COPY . /code
-RUN cd websocket-client && pip install -e .
-RUN cd /code && pip install -e .
+WORKDIR /code
+
+RUN pip install git+https://github.com/agicommies/communex
+
+RUN pip install -r requirements.txt
+
+
+
+
+
+
+
+
+
+
 

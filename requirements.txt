@@ -4,13 +4,8 @@ loguru
 torch
 torchaudio
 torchvision
-transformers
+git+https://github.com/huggingface/transformers
 sentence-transformers
 tiktoken
-cellium
-substrate-interface
-communex
 python-dotenv
-eth-typing
-git+https://github.com/websocket-client/websocket-client
 
