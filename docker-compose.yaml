@@ -2,11 +2,10 @@ services:
   eden.validator_1:
     build: .
     ports:
-      - "7070:7070"
+      - "8080:8080"
     volumes:
       - .:/code
       - /home/ubuntu/.commune:/root/.commune
-      - .venv:/code/.venv
     env_file:
       - .env
     environment:
@@ -15,11 +14,12 @@ services:
       - python 
       - -m 
       - eden_subnet.validator.eden_Validator_1.py
+      - --key_name
       - eden.Validator_1
       - --host
-      - 0.0.0.0
+      - "50.99.63.14"
       - --port
-      - "7070"
+      - "8080"
     deploy:
       resources:
         reservations:

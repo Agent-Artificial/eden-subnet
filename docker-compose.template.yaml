@@ -14,6 +14,7 @@ services:
       - python 
       - -m 
       - MODULE_PATH
+      - --key_name
       - KEY_NAME
       - --host
       - "HOST"

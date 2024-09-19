@@ -32,8 +32,6 @@ else
     fi
 fi
 
-$module_path="eden_subnet/validator/$env_file"
-
 # Select validator or miner
 while true; do
     read -p "Launch validator or miner?[v/M] " choice
@@ -139,7 +137,7 @@ register() {
     module_host=$4
     netuid=$5
 
-    comx module_register "$modulename" "$keyname" "$netuid" 
+    comx module register "$modulename" "$keyname" "$netuid" 
 }
 
 create_key() {
@@ -154,7 +152,6 @@ transfer_balance() {
     read -p "Source key name: " source_key
 
     comx balance transfer $source_key $amount $keyname
-
 }
 
 read -p "Do you want to create a new key? [y/N] " create_new_key
@@ -165,7 +162,14 @@ fi
 
 read -p "Do you want to transfer a balance to the key? [y/N] " transfer_balance
 if [[ "$transfer_balance" == "y" || "$transfer_balance" == "Y" ]]; then
-    
+    transfer_balance "$key_name"
+fi
 
-register "$module_name" "$key_name" "$port" "$host" "$subnet_id"
+read -p "Do you want to register the module? [y/N] " register_module
+
+if [[ "$register_module" == "y" || "$register_module" == "Y" ]]; then
+    register "$module_name" "$key_name" "$port" "$host" "$subnet_id"
+fi
+
+docker compose up -d --remove-orphans
 
