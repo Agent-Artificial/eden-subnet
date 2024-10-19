@@ -4,19 +4,42 @@ import time
 import os
 import requests
 import asyncio
+import numpy as np
 from pathlib import Path
 from loguru import logger
 from dotenv import load_dotenv
+from scipy.spatial.distance import cosine
 from communex.compat.key import Keypair, classic_load_key
 from communex.client import CommuneClient
 from communex._common import get_node_url
 from pydantic import BaseModel
-from typing import List
-from dotenv import load_dotenv
+from typing import List, Any
+import argparse
 
 from eden_subnet.miner.tiktokenizer import TikTokenizer
 
 load_dotenv()
+
+def parseargs():
+    """
+    Parse command line arguments using argparse module.
+
+    Returns:
+        argparse.Namespace: Object containing the parsed arguments.
+    """
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--key_name", type=str, default=None, help="Name of the validator as it will appear on chain")
+    parser.add_argument("--module_path", type=str, default=None, help="Filename with out the .json suffix in the ~/.commune/key directory")
+    parser.add_argument("--host", type=str, default=None, help="Host address for the validator")
+    parser.add_argument("--port", type=int, default=None, help="Port for the validator")
+    parser.add_argument("--base_url", type=str, default=None, help="Base URL for inference request.")
+    parser.add_argument("--api_key", type=str, default=None, help="OpenAI or Agent Artificial API Key")
+    parser.add_argument("--model", type=str, default=None, help="OpenAI or Agent Artificial Model")
+    return parser.parse_args()
+
+
+ARGS = parseargs()
+
 
 tokenizer = TikTokenizer()
 comx = CommuneClient(get_node_url())
@@ -182,12 +205,17 @@ TOPICS = [
 ]
 
 
-class Validator:
+import aiohttp
+import asyncio
+from asyncio import Semaphore
+
+class Base_Validator:
     key_name: str
     module_path: str
     host: str
     port: int
     settings: ValidatorSettings
+    keypair: Any
     """
     Represents a validator with key name, module path, host, port, and settings.
 
@@ -212,13 +240,13 @@ class Validator:
         get_sample_result: Gets a sample result by making a request.
         cosine_similarity: Calculates the cosine similarity between two embeddings.
         validate_input: Evaluates the sample similarity using cosine similarity.
-        get_similairities: Gets similarities from multiple addresses.
+        : Gets similarities from multiple addresses.
         validate_loop: Validates the loop by scoring modules and voting.
-        parse_addresses: Parses addresses from the network.
-        parse_weights: Parses existing weights from the network.
-        parse_stake: Parses stake information from the network.
-        check_weights: Checks for unranked weights and assigns default weight.
-        parse_keys: Parses keys from the network.
+        get_querymap_addresses: Parses addresses from the network.
+        get_querymaps_weights: Parses existing weights from the network.
+        get_querymap_stake: Parses stake information from the network.
+        set_default_weights: Checks for unranked weights and assigns default weight.
+        get_querymap_keys: Parses keys from the network.
         scale_numbers: Scales a list of numbers.
         list_to_dict: Converts a list to a dictionary.
         scale_dict_values: Scales dictionary values.
@@ -227,10 +255,6 @@ class Validator:
 
     def __init__(
         self,
-        key_name: str,
-        module_path: str,
-        host: str,
-        port: int,
         settings: ValidatorSettings,
     ) -> None:
         """
@@ -243,11 +267,12 @@ class Validator:
             port: The port number.
             settings: ValidatorSettings object containing settings.
         """
-        self.key_name = key_name or settings.key_name
-        self.module_path = module_path or settings.module_path
-        self.host = host or settings.host
-        self.port = port or settings.port
+        self.key_name = settings.key_name
+        self.module_path = settings.module_path
+        self.host = settings.host
+        self.port = settings.port
         self.settings = settings
+        self.keypair = self.load_local_key()
 
     def get_uid(self):
         """
@@ -262,10 +287,10 @@ class Validator:
         Raises:
             ValueError: If the unique identifier (uid) is not found.
         """
-        key_map = comx.query_map_key(netuid=10)
-        keypair = classic_load_key(self.key_name)
-        ss58_address = keypair.ss58_address
-        ss58 = ""
+        key_map = self.get_querymap_keys()
+        
+        
+        ss58_address = self.keypair.ss58_address
         for uid, ss58 in key_map.items():
             if ss58 == ss58_address:
                 return uid
@@ -283,16 +308,16 @@ class Validator:
         Returns:
             Keypair: A Keypair object with the private key and SS58 address.
         """
-        keypath = (
-            Path(f"$HOME/.commune/key/{self.key_name}.json").expanduser().resolve()
-        )
+        keypath = Path(f"/home/administrator/.commune/key/{self.key_name}.json")
+        
         with open(keypath, "r", encoding="utf-8") as f:
             key = json.loads(f.read())["data"]
             private_key = json.loads(key)["private_key"]
             ss58address = json.loads(key)["ss58_address"]
-            return Keypair(private_key=private_key, ss58_address=ss58address)
 
-    async def make_request(self, message: Message, input_url: str = ""):
+        return Keypair(private_key=private_key, ss58_address=ss58address)
+
+    def make_request(self, message: Message, input_url: str):
         """
         A function that makes a request based on the provided messages and input URL.
 
@@ -306,41 +331,42 @@ class Validator:
         Raises:
             Exception: If an error occurs during the request process.
         """
-        # input_url = "http://localhost:10001/generate"
+        logger.debug(f"AGENTARTIFICIAL_BASE_URL: {os.getenv('AGENTARTIFICIAL_BASE_URL')}")
+        logger.debug(f"OPENAI_BASE_URL: {os.getenv('OPENAI_BASE_URL')}")
+        logger.debug(f"ARGS.base_url: {ARGS.base_url}")
+
+        if not input_url:
+            url_to_use = ARGS.base_url or os.getenv("AGENTARTIFICIAL_BASE_URL") or os.getenv("OPENAI_BASE_URL")
+            if not url_to_use:
+                raise ValueError("No input_url provided")
+        else:
+            url_to_use = input_url
+
         logger.info("\nMaking request")
-
-        payload = json.dumps(
-            {
-                "messages": [{"content": message.content, "role": "user"}],
-                "model": "llama-3-8b-instruct",
-            }
-        )
+        logger.debug(f"\ninput_url: {url_to_use}")
+        payload = {
+            "messages": [message.model_dump()],
+            "model": ARGS.model or os.getenv("AGENTARTIFICIAL_MODEL") or os.getenv("OPENAI_MODEL")
+        }
         headers = {"Content-Type": "application/json"}
-        if api_key := os.getenv("AGENTARTIFICIAL_API_KEY") or os.getenv(
-            "OPENAI_API_KEY"
-        ):
-            headers["Authorization"] = f"Bearer {api_key}"
 
-        result = ""
         try:
             response = requests.request(
                 method="POST",
-                url=input_url,
+                url=url_to_use,
                 headers=headers,
-                data=payload,
-                timeout=30,
+                json=payload,
+                timeout=60,
             )
             logger.debug(f"\nResponse:\n{response.content}")
-            result = response.json()["choices"][0]["message"]["content"]
+            return response.json()["choices"][0]["message"]["content"]
 
         except Exception as e:
             logger.debug(f"\nError making request:\n{e}")
-            if input_url != str(os.getenv("AGENTARTIFICIAL_URL")):
-                result = []
+            raise e
+            
 
-        return result
-
-    async def get_sample_result(self):
+    def get_sample_result(self):
         """
         Asynchronously retrieves a sample result by selecting a random topic from the predefined TOPICS list,
         creating a message based on the chosen topic, making a request using the message, and returning the sample result.
@@ -358,8 +384,9 @@ class Validator:
             content=f"Please write a short alegory about this topic: {topic}",
             role="user",
         )
-        sample_result = await self.make_request(
-            message=topic_message, input_url=str(os.getenv("AGENTARTIFICIAL_URL"))
+        input_url = os.getenv("AGENTARTIFICIAL_URL") or os.getenv("OPENAI_URL")
+        sample_result = self.make_request(
+            message=topic_message, input_url=input_url
         )
         logger.debug(f"\nSample Result:\n{sample_result}")
         return sample_result
@@ -376,8 +403,6 @@ class Validator:
             The normalized similarity value multiplied by 99.
         """
         logger.info("\nCalculating cosine similarity")
-        import numpy as np
-        from scipy.spatial.distance import cosine
 
         # Example vectors
         vec1 = np.array(embedding1)
@@ -407,24 +432,29 @@ class Validator:
         """
         result = None
         
-        logger.info("\nEvaluating sample similarity")
-        if not embedding2 and len(embedding1) != 0:
-            zero_score = [0.00000001 for _ in range(len(embedding1))]
-            embedding2=zero_score
+        if not embedding1:
+            logger.error("\nembedding1 is empty, cannot validate")
+            return 1
         
+        logger.info("\nEvaluating sample similarity")
+        if not embedding2:
+            logger.warning("\nembedding2 is empty, setting to a score of 1")
+            zero_score = [1 for _ in range(len(embedding1))]
+            embedding2=zero_score
+        logger.debug(f"\nembedding1: {embedding1}\nembedding2: {embedding2}")
         try:
             response = self.cosine_similarity(
                 embedding1=embedding1, embedding2=embedding2
             )
             result = round(response, 2)
         except Exception as e:
-            logger.error(f"\ncould not connect to miner, adjusting score.\n{e}")
+            logger.warning(f"\ncould not connect to miner, adjusting score.\n{e}")
             result = 1
         return result
 
-    async def get_similairities(self, selfuid, encoding, prompt_message, addresses):
+    async def get_miner_responses(self, selfuid, encoding, prompt_message, addresses):
         """
-        Retrieves similarities from different addresses by making requests and validating the responses.
+        Retrieves similarities from different addresses by making concurrent requests and validating the responses.
 
         Parameters:
             selfuid: The unique identifier of the calling entity.
@@ -436,23 +466,74 @@ class Validator:
             A dictionary containing the responses from different addresses after validation.
         """
         miner_responses = {}
-        for uid, address in addresses.items():
-            logger.info(f"\nGetting similairities - {uid}")
+        semaphore = Semaphore(50)  # Limit concurrent requests to 50
+
+        async def process_address(uid, address):
             if uid == selfuid:
-                continue
+                return
             url = f"http://{address}/generate"
             if f"http://{self.host}:{self.port}/generate" == url:
-                continue
-            try:
-                response = await self.make_request(
-                    message=prompt_message, input_url=url
-                )
+                return
+            
+            async with semaphore:
+                try:
+                    async with aiohttp.ClientSession() as session:
+                        response = await self.make_request_async(session, prompt_message, url)
+                    miner_responses[uid] = self.validate_input(encoding, response)
+                except Exception as e:
+                    logger.debug(f"\nError getting similarities for {uid}: {e}\n{e.args}\n")
 
-                miner_responses[uid] = self.validate_input(encoding, response)
-            except Exception as e:
-                logger.debug(f"\nError getting similairities: {e}\n{e.args}\n")
-            time.sleep(10)
+        tasks = [process_address(uid, address) for uid, address in addresses.items()]
+        await asyncio.gather(*tasks)
+        
         return miner_responses
+
+    async def make_request_async(self, session, message: Message, input_url: str = ""):
+        """
+        Makes an asynchronous request based on the provided messages and input URL.
+
+        Parameters:
+            session: The aiohttp ClientSession to use for the request.
+            message (Message): A Message object to be used in the request.
+            input_url (str): The URL to make the request to. Default is an empty string.
+
+        Returns:
+            str: The content of the response from the request, processed to extract specific content.
+
+        Raises:
+            Exception: If an error occurs during the request process.
+        """
+        logger.info("\nMaking async request")
+        
+        url_to_use = input_url
+        
+        if not url_to_use:
+            url_to_use = ARGS.base_url or os.getenv("AGENTARTIFICIAL_BASE_URL") or os.getenv("OPENAI_URL")
+            if not url_to_use:
+                raise ValueError("No input_url provided")            
+
+        # logger.debug(f"\nARGS.base_url: {ARGS.base_url}")
+        # logger.debug(f"\nAGENTARTIFICIAL_BASE_URL: {os.getenv('AGENTARTIFICIAL_BASE_URL')}")
+        # logger.debug(f"\nOPENAI_URL: {os.getenv('OPENAI_URL')}")
+        # logger.debug(f"\nFinal input_url: {url_to_use}")
+        payload = json.dumps({
+            "messages": [{"content": message.content, "role": "user"}],
+            "model": ARGS.model or os.getenv("AGENTARTIFICIAL_MODEL") or os.getenv("OPENAI_MODEL"),
+        })
+        headers = {"Content-Type": "application/json"}
+        if api_key := ARGS.api_key or os.getenv("AGENTARTIFICIAL_API_KEY") or os.getenv("OPENAI_API_KEY"):
+            headers["Authorization"] = f"Bearer {api_key}"
+
+        try:
+            async with session.post(url_to_use, headers=headers, data=payload, timeout=30) as response:
+                response_json = await response.json()
+                result = response_json["choices"][0]["message"]["content"]
+                logger.debug(f"\nResponse:\n{result}")
+                return result
+        except Exception as e:
+            logger.debug(f"\nError making request:\n{e}")
+            if input_url != str(os.getenv("AGENTARTIFICIAL_URL")):
+                return []
 
     async def validate_loop(self):
         """
@@ -466,23 +547,34 @@ class Validator:
         """
         selfuid = self.get_uid()
 
-        address_dict = self.parse_addresses()
-        weights_dict = self.parse_weights()
-        weights_dict = self.check_weights(selfuid, weights_dict, address_dict)
+        # Query the chain for the addresses, weights, and keys
+        address_dict = self.get_querymap_addresses()
+        # Debugging: Limit the number of addresses to 10
+        # address_dict = dict(list(address_dict.items())[:10])
+        weights_dict = self.get_querymaps_weights()
+        weights_dict = self.set_default_weights(selfuid, weights_dict, address_dict)
 
-        keys_dict = self.parse_keys()
+        keys_dict = self.get_querymap_keys()
 
-        sample_result = await self.get_sample_result()
+        # Generate a sample result and convert it into an embedding
+        sample_result = self.get_sample_result()
         prompt_message = Message(content=str(sample_result), role="user")
         encoding = tokenizer.embedding_function.encode(str(sample_result))
+        
+        
 
-        similiarity_dict = await self.get_similairities(
+        # Get the responses from the miners
+        responses_dict = await self.get_miner_responses(
             selfuid, encoding, prompt_message, address_dict
         )
+        
+        # Score the modules
         score_dict = self.score_modules(
-            weights_dict, address_dict, keys_dict, similiarity_dict
+            weights_dict, address_dict, keys_dict, responses_dict
         )
         logger.debug(score_dict)
+        
+        # Convert the weights into a list of uids and weight values for voting.
         logger.info("\nLoading key")
         uids = []
         weights = []
@@ -493,7 +585,22 @@ class Validator:
             uids.append(uid)
             weights.append(weight)
         logger.debug(f"\nuids: {uids}\nweights: {weights}")
-        comx.vote(key=Keypair(self.key_name), netuid=10, weights=weights, uids=uids)
+        subnet_weights = {"uids": uids, "weights": weights}
+        
+        # Save a copy for debugging
+        with open("data/weights.json", "w") as f:
+            f.write(json.dumps(subnet_weights, indent=4))
+
+        # Vote on the modules   
+        try:
+            result = comx.vote(key=self.keypair, netuid=10, weights=weights, uids=uids)
+            if result.is_success:
+                logger.info("Voted successfully")
+            else:
+                logger.error(f"\n{result}")
+        except Exception as e:
+            logger.exception(f"Error voting: {e}")
+        
         logger.warning("Voted")
         time.sleep(60)
 
@@ -501,14 +608,14 @@ class Validator:
         while True:
             asyncio.run(self.validate_loop())
 
-    def parse_addresses(self):
+    def get_querymap_addresses(self):
         """
         Parses addresses and returns the result from comx.query_map_address with netuid 10.
         """
         logger.info("\nParsing addresses")
         return comx.query_map_address(netuid=10)
 
-    def parse_weights(self):
+    def get_querymaps_weights(self):
         """
         Parses existing weights and creates a dictionary mapping UID to weight.
 
@@ -527,14 +634,14 @@ class Validator:
                 weight_dict[uid] = weight
         return weight_dict
 
-    def parse_stake(self):
+    def get_querymap_stake(self):
         """
         A function that parses stake information and returns the result from comx.query_map_stake with netuid 10.
         """
         logger.info("\nParsing stake")
         return comx.query_map_stake(netuid=10)
 
-    def check_weights(self, selfuid, weights, addresses):
+    def set_default_weights(self, selfuid, weights, addresses):
         """
         Checks for unranked weights and assigns a default weight of 30 to the missing weights.
 
@@ -553,7 +660,7 @@ class Validator:
 
         return weights
 
-    def parse_keys(self):
+    def get_querymap_keys(self):
         """
         A function that parses keys and returns the result from comx.query_map_key with netuid 10.
         """
@@ -562,8 +669,7 @@ class Validator:
 
     def scale_numbers(self, numbers):
         """
-        A function that scales a list of numbers between 0 and 1 based on their minimum and maximum values.
-
+        A function that scales a list of numbers between 0 and 1 based on their minimum and maximum
         Parameters:
             self: The instance of the class.
             numbers: A list of numbers to be scaled.
@@ -601,11 +707,29 @@ class Validator:
             dict: A dictionary with the scaled values between 0 and 1.
         """
         logger.info("\nScaling dictionary values")
+        min_value = 0.00001
+        logger.debug(f"\nmin_value: {min_value}")
+        max_value = max(dictionary.values())
+        logger.debug(f"\nmax_value: {max_value}")
+        
         return {
-            key: (value - min(dictionary.values()))
-            / (max(dictionary.values()) - min(dictionary.values()))
+            key: (value - min_value) / (max_value - min_value)
             for key, value in dictionary.items()
         }
+    def get_staketo_values(self):
+        staketo_map = comx.query_map_staketo()
+        key_map = comx.query_map_key(netuid=10)
+        staketo_dict = {}
+        for uid, key in key_map.items():
+            staketo_value = 0.00001
+            if key not in staketo_map:
+                continue
+            staketo = staketo_map[key]
+            for stakeitems in staketo:
+                _, value = stakeitems
+                staketo_value += value
+            staketo_dict[uid] = staketo_value
+        return staketo_dict
 
     def score_modules(self, weights_dict, staketos_dict, keys_dict, similairity_dict):
         """
@@ -622,27 +746,65 @@ class Validator:
             dict: A dictionary containing the calculated scores for each module.
         """
         logger.info("\nCalculating scores")
-        staketos = {}
-        for uid, key in keys_dict.items():
-            if key in staketos_dict:
-                staketo = staketos_dict[key]
-                staketos[uid] = staketo
-        scaled_staketos_dict = self.scale_dict_values(staketos)
+        logger.debug(f"\nweights_dict: {weights_dict}\nsimilairity_dict: {similairity_dict}")
         scaled_weight_dict = self.scale_dict_values(weights_dict)
         scaled_similairity_dict = self.scale_dict_values(similairity_dict)
+        staketo_dict = self.get_staketo_values()
+        scaled_staketo_dict = self.scale_dict_values(staketo_dict)
         scaled_scores = {}
-        for uid in keys_dict.keys():
-            
-            if uid in scaled_staketos_dict:
-                stake = scaled_staketos_dict[uid]
+        for uid in keys_dict.keys():     
+            if uid not in scaled_similairity_dict:
+                continue       
             calculated_score = (
                 scaled_weight_dict[uid] * 0.4
-                + stake * 0.2
                 + scaled_similairity_dict[uid] * 0.2
+                + scaled_staketo_dict[uid] * 0.2
             ) 
-            scaled_scores[uid] = calculated_score
+            if calculated_score <= 0:
+                calculated_score = 0.01               
             logger.debug(f"UID: {uid}\nScore: {calculated_score}")
+            scaled_scores[uid] = calculated_score
             
-        scaled_score = self.scale_dict_values(scaled_scores)
-        print(scaled_score)
-        return scaled_score
+        print(scaled_scores)
+        
+        return self.scale_dict_values(scaled_scores)
+    
+
+class Validator(Base_Validator):
+    @logger.catch()
+    def __init__(self, settings: ValidatorSettings) -> None:
+        """
+        Initializes the Validator class with the provided settings.
+
+        Args:
+            settings (ValidatorSettings): An instance of ValidatorSettings containing key_name, module_path, host, port, and settings.
+
+        Returns:
+            None
+        """
+        super().__init__(
+            settings=settings,
+        )
+        self.key_name = settings.key_name
+        self.module_path = settings.module_path
+        self.host = settings.host
+        self.port = settings.port
+        self.keypair = self.load_local_key()
+        
+# Apply settings
+
+def main():
+    validator_settings = ValidatorSettings(
+        key_name=ARGS.key_name or os.getenv("VALIDATOR_KEY_NAME"),
+        module_path=ARGS.module_path or os.getenv("VALDAITOR_MODULE_PATH"),
+        host=ARGS.host or os.getenv("VALIDATOR_HOST"),
+        port=ARGS.port or os.getenv("VALIDATOR_PORT"),
+    )
+    # Serve the validator
+    logger.info("\nLaunching validator")
+    validator = Validator(settings=validator_settings)
+    validator.run_voteloop()
+
+
+if __name__ == "__main__":
+    main()
