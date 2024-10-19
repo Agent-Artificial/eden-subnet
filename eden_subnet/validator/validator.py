@@ -32,7 +32,7 @@ def parseargs():
     parser.add_argument("--module_path", type=str, default=None, help="Filename with out the .json suffix in the ~/.commune/key directory")
     parser.add_argument("--host", type=str, default=None, help="Host address for the validator")
     parser.add_argument("--port", type=int, default=None, help="Port for the validator")
-    parser.add_argument("--base_url", type=str, default=None, help="Base URL for inference request.")
+    parser.add_argument("--url", type=str, default=None, help="Base URL for inference request.")
     parser.add_argument("--api_key", type=str, default=None, help="OpenAI or Agent Artificial API Key")
     parser.add_argument("--model", type=str, default=None, help="OpenAI or Agent Artificial Model")
     return parser.parse_args()
@@ -209,7 +209,7 @@ import aiohttp
 import asyncio
 from asyncio import Semaphore
 
-class Base_Validator:
+class Validator:
     key_name: str
     module_path: str
     host: str
@@ -331,12 +331,12 @@ class Base_Validator:
         Raises:
             Exception: If an error occurs during the request process.
         """
-        logger.debug(f"AGENTARTIFICIAL_BASE_URL: {os.getenv('AGENTARTIFICIAL_BASE_URL')}")
-        logger.debug(f"OPENAI_BASE_URL: {os.getenv('OPENAI_BASE_URL')}")
-        logger.debug(f"ARGS.base_url: {ARGS.base_url}")
+        logger.debug(f"AGENTARTIFICIAL_URL: {os.getenv('AGENTARTIFICIAL_URL')}")
+        logger.debug(f"OPENAI_URL: {os.getenv('OPENAI_URL')}")
+        logger.debug(f"ARGS.url: {ARGS.url}")
 
         if not input_url:
-            url_to_use = ARGS.base_url or os.getenv("AGENTARTIFICIAL_BASE_URL") or os.getenv("OPENAI_BASE_URL")
+            url_to_use = ARGS.url or os.getenv("AGENTARTIFICIAL_URL") or os.getenv("OPENAI_URL")
             if not url_to_use:
                 raise ValueError("No input_url provided")
         else:
@@ -508,12 +508,12 @@ class Base_Validator:
         url_to_use = input_url
         
         if not url_to_use:
-            url_to_use = ARGS.base_url or os.getenv("AGENTARTIFICIAL_BASE_URL") or os.getenv("OPENAI_URL")
+            url_to_use = ARGS.url or os.getenv("AGENTARTIFICIAL_URL") or os.getenv("OPENAI_URL")
             if not url_to_use:
                 raise ValueError("No input_url provided")            
 
-        # logger.debug(f"\nARGS.base_url: {ARGS.base_url}")
-        # logger.debug(f"\nAGENTARTIFICIAL_BASE_URL: {os.getenv('AGENTARTIFICIAL_BASE_URL')}")
+        # logger.debug(f"\nARGS.url: {ARGS.url}")
+        # logger.debug(f"\nAGENTARTIFICIAL_URL: {os.getenv('AGENTARTIFICIAL_URL')}")
         # logger.debug(f"\nOPENAI_URL: {os.getenv('OPENAI_URL')}")
         # logger.debug(f"\nFinal input_url: {url_to_use}")
         payload = json.dumps({
@@ -770,7 +770,7 @@ class Base_Validator:
         return self.scale_dict_values(scaled_scores)
     
 
-class Validator(Base_Validator):
+class Validator(Validator):
     @logger.catch()
     def __init__(self, settings: ValidatorSettings) -> None:
         """
@@ -795,10 +795,10 @@ class Validator(Base_Validator):
 
 def main():
     validator_settings = ValidatorSettings(
-        key_name=ARGS.key_name or os.getenv("VALIDATOR_KEY_NAME"),
-        module_path=ARGS.module_path or os.getenv("VALDAITOR_MODULE_PATH"),
-        host=ARGS.host or os.getenv("VALIDATOR_HOST"),
-        port=ARGS.port or os.getenv("VALIDATOR_PORT"),
+        key_name=ARGS.key_name or os.getenv("KEY_NAME"),
+        module_path=ARGS.module_path or os.getenv("MODULE_PATH"),
+        host=ARGS.host or os.getenv("HOST"),
+        port=ARGS.port or os.getenv("PORT"),
     )
     # Serve the validator
     logger.info("\nLaunching validator")
