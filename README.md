@@ -14,33 +14,41 @@ Vector stores play a crucial role in augmenting the abilities and knowledge base
 
 We are initiating our subnet by deploying simple embedding miners. These miners utilize embedding functions to generate token embeddings, which are then stored in vectorstores. The second phase of our project involves leveraging these embedding miners to establish a distributed vector store. Our strategy includes creating domain-specific knowledge stores, which will be indexed on the blockchain. These stores will provide data as a service to large language models (LLMs). Additionally, we are exploring the integration of knowledge graphs and the storage of synthetic data. Potential collaborations are being considered, including one with the Synthia subnet, to enhance our capabilities in synthetic data handling.
 
+## Updated Validator Setup
+
+I have made some changes to the library to enable running of our validator to be simple. There now is a docker_launch.sh script that will walk you through the configuration of the validator and launch it in a container. 
+Alternatively if you would like to manually launch it the `eden_subnet/validator/validator.py` script now runs directly when called. You can either supply it `--commands` or populate a `.env` file with your configuration. You can find an example in `.env.example` and to get the command line arguments `python eden_subnet/validator/validator.py --help`
+
 ## Setup Instructions
 
-Once you clone the repo you need to copy the `eden.py` file from `eden_subnet/miner/eden.py` to whatever the first part of your name is going to be.
+Once you clone the repo you need to copy the ```eden.py``` file from ```eden_subnet/miner/eden.py``` to whatever the first part of your name is going to be.
 
-Warning: If you encounter websocket problem likes this:
-0|k1     | ImportError: cannot import name 'create_connection' from 'websocket' (/root/.cache/pypoetry/virtualenvs/eden-subnet-_cSBlTic-py3.10/lib/python3.10/site-packages/websocket/__init__.py)
-Then follow these steps:
-1. Uninstall both websocket and websocket-client
-`pip uninstall websocket websocket-client websocket_client`
-2. Then install the websocket client directly 
-`git clone https://github.com/websocket-client/websocket-client`
-`cd websocket-client`
-`pip install -e .`
-3. Done.
+### Example:
+```cp eden_subnet/miner/eden.py eden_subnet/miner/my_miner.py```
 
-Example: 
-`cp eden_subnet/miner/eden.py eden_subnet/miner/my_miner.py`
+Inside of that file you need to change the class name from ```Miner_1``` to whatever you want the second part of the name to be. 
+That determines the keyname and the module path so in the example it would be:
 
-Inside of that file you need to change the class name from  `Miner_1` to whatever you want the second part of the name to be.
-that determines the key name and module path so in the example it would be 
-find `class Miner_1(Miner):` which turns into `class BobTheMiner(Miner):`
-then you need to make a key
+`class Miner_1(Miner):` 
+
+which turns into 
+
+`class BobTheMiner(Miner):`
+
+Now you need a key
+
 `comx key create my_miner.BobTheMiner`
-then you need to register the miner 
+
+Then you register the miner
+
 `comx module register my_miner.BobTheMiner my_miner.BobTheMiner 66.235.35.363 8000 --netuid 10`
-after that you need to serve it with
+
+and finally serve it
+
 `python -m eden_subnet.miner.my_miner --key_name my_miner.BobTheMiner --host 0.0.0.0 --port 8000`
+
+Note that the serving ip address is `0.0.0.0` meaning it listens on all ips. This is important so that your miner can recieve requests for embeddings. 
+
 =======
 ## Minimum Requirements
 
@@ -50,9 +58,9 @@ Internet connection
 ## Launcher
 
 The easiest way to launch miners and validators is using the launch.sh script if you're on linux.
-
-`chmod +x launch.sh` 
-`bash launch.sh`
+``
+```chmod +x launch.sh` ``
+```bash launch.sh`
 
 Simpily follow the prompts. You information will be requested along with the correct format of that information. Select `deploy` to *serve* and *register* the validator or miner otherwise select `serve` or `register` to serve or register the module respectively. 
 *Serving* means you are making your module available to the network for use. Use host `0.0.0.0` when serving, this means your module will listen on all ips on the local system. 
@@ -62,8 +70,8 @@ Simpily follow the prompts. You information will be requested along with the cor
 
 Base miner is in the [miner](eden_subnet/miner/miner.py) folder. Copy the class `Miner` and pass it the `MinerSettings` class to deploy your own version. The repo references the position of the miner class and the file it resides in through a naming convention of the miner. Use <FILE_NAME>.<CLASS_NAME> for both the name of the key you are staking with and the file/class name of the code to your miner. 
 To launch your miner you need to open a new python script in `eden_subnet/miner` and inherit the miner with a new class. You can see an example of this [here](eden_subnet/miner/eden.py)
-
-```#python
+``
+`````#python
 from eden_subnet.miner.miner import Miner, MinerSettings
 from communex.compat.key import Keypair
 
@@ -84,10 +92,10 @@ class YourClassName(Miner):
 my_miner = YourClassName(settings)
 
 # Serve the miner
-my_miner.serve()
-```
-
-`python -m eden_subnet.miner.miner`
+my_miner.serve()``
+`````
+``
+```python -m eden_subnet.miner.miner`
 
 That command will serve a miner listening on all ip addresses(use 0.0.0.0 for serving and your machines actual ip for registering) on port 10001. The miner code is located in `eden_subnet.miner.miner` and inside of that script there is a class called `Miner` that is being served.
 
@@ -98,8 +106,8 @@ There is also a docker compose that will deploy validators and miners. You will 
 ## Validator
 
 The Validator generates a random allegory based on some topics that change regularly and produces embeddings locally before making a request to a miner. It then compares the two using a semantic similarity of the vectors and provides a score. Then it takes the scores of the whole subnet and calculates your position based on how well your embedder did and how that stands up against the rest of the subnet adjusting the weights accordingly.
-
-```#python
+``
+`````#python
 from edne_subnet.validator.validator import Validator, ValidatorSettings
 from communex.compat.key import Keypair
 
@@ -120,22 +128,22 @@ class YourClassName(Validator):
 my_miner = YourClassName(settings)
 
 # Serve the miner
-my_miner.serve()
-```
-The validator is served similarly to the miner with 
-`python -m eden_subnet.validator.your_file_name your_file_name.YourClassName your_file_name.YourClassName 0.0.0.0 10010`
+my_miner.serve()``
+`````
+The validator is served similarly to the miner with ``
+```python -m eden_subnet.validator.your_file_name your_file_name.YourClassName your_file_name.YourClassName 0.0.0.0 10010`
 
 Like the miner the validator will serve the class `Validator` which lives in a folder `eden_subnet.validator.validator` and provide that on port 10010 listening on all ip's
 
 ## Registering
 
 Once you confirm that you can run the validator and/or miner you need to register the module with the subnet. use the command
-
-`comx module register KEY_NAME MODULE_PATH HOST_IP PORT --netuid 10 --stake AMOUNT`
+``
+```comx module register KEY_NAME MODULE_PATH HOST_IP PORT --netuid 10 --stake AMOUNT`
 
 So for our example with the miner we would provide our actual ip address and copy the information accordingly
-
-`comx module register miner.Miner miner.Miner 66.224.58.25 10010 --netuid 10 --stake 256`
+``
+```comx module register miner.Miner miner.Miner 66.224.58.25 10010 --netuid 10 --stake 256`
 
 
 ## Notes
