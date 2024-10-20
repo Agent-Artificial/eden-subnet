@@ -308,7 +308,7 @@ class Validator:
         Returns:
             Keypair: A Keypair object with the private key and SS58 address.
         """
-        keypath = Path(f"/home/administrator/.commune/key/{self.key_name}.json")
+        keypath = Path(f"{Path.home()}/.commune/key/{self.key_name}.json")
         
         with open(keypath, "r", encoding="utf-8") as f:
             key = json.loads(f.read())["data"]
@@ -349,6 +349,8 @@ class Validator:
             "model": ARGS.model or os.getenv("AGENTARTIFICIAL_MODEL") or os.getenv("OPENAI_MODEL")
         }
         headers = {"Content-Type": "application/json"}
+        if api_key := ARGS.api_key or os.getenv("AGENTARTIFICIAL_API_KEY") or os.getenv("OPENAI_API_KEY"):
+            headers["Authorization"] = f"Bearer {api_key}"
 
         try:
             response = requests.request(
