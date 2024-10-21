@@ -11,4 +11,4 @@ voting3.py
 tests/voting_tests/test_voting.py
 .pytest_cache
 *.pyc
-data/*.json
+data

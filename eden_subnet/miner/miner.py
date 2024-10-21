@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from communex.module.module import Module, endpoint
 from communex.client import Ss58Address
 from eden_subnet.miner.tiktokenizer import TikTokenizer
-from eden_subnet.miner.data_models import MinerSettings
+from eden_subnet.miner.data_models import MinerSettings, EmbeddingRequest
 
 app = FastAPI()
 
@@ -92,7 +92,8 @@ class Miner(BaseModel, Module):
         Returns:
             dict: A dictionary containing the model, with the key "model" and the value being the tokenizer object.
         """
-        return {"model": self.tokenizer}
+        self.tokenizer.embedding_function = tiktoken.get_encoding("cl100k_base")
+        return {"model": self.tokenizer.embedding_function}
 
     @endpoint
     def serve(self, settings: MinerSettings):
@@ -111,10 +112,10 @@ class Miner(BaseModel, Module):
         """
         Executes the instance when called, running the FastAPI app with the specified host and port.
         """
-        uvicorn.run(app, host="0.0.0.0", port=10001)
+        uvicorn.run(app, host=self.host, port=self.port)
 
     @endpoint
-    def generate(self, request: GenerateRequest):
+    def generate(self, request: EmbeddingRequest):
         """
         A function that generates something based on the provided request.
 
@@ -127,20 +128,16 @@ class Miner(BaseModel, Module):
         Raises:
             HTTPException: If an HTTP exception occurs during the generation process.
         """
-        dict_request = request.model_dump()
-        content = dict_request["messages"][0]["content"]
-        result = tokenizer.embedding_function.encode(content)
+        dict_request = request.messages[0].content
         return {
             "choices": [
                 {
-                    "index": 0,
                     "message": {
                         "role": "assistant",
-                        "content": result,
-                    },
+                        "content": self.tokenizer.embedding_function.encode(dict_request)
+                    }
                 }
-            ]
-        }
+        ]}
 
 
 @app.post("/generate")
