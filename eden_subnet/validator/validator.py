@@ -311,15 +311,65 @@ class Validator:
         Returns:
             Keypair: A Keypair object with the private key and SS58 address.
         """
-        keypath = Path(f"/home/administrator/.commune/key/{self.key_name}.json")
+        keypath = Path(f"{Path.home()}/.commune/key/{self.key_name}.json")
         
         with open(keypath, "r", encoding="utf-8") as f:
             key = json.loads(f.read())["data"]
             private_key = json.loads(key)["private_key"]
             ss58address = json.loads(key)["ss58_address"]
 
-        return Keypair(private_key=private_key, ss58_address=ss58address)  
+        return Keypair(private_key=private_key, ss58_address=ss58address)
 
+    def make_request(self, message: Message, input_url: str):
+        """
+        A function that makes a request based on the provided messages and input URL.
+
+        Parameters:
+            messages (List[Message]): A list of Message objects to be used in the request.
+            input_url (str): The URL to make the request to. Default is an empty string.
+
+        Returns:
+            str: The content of the response from the request, processed to extract specific content.
+
+        Raises:
+            Exception: If an error occurs during the request process.
+        """
+        logger.debug(f"AGENTARTIFICIAL_URL: {os.getenv('AGENTARTIFICIAL_URL')}")
+        logger.debug(f"OPENAI_URL: {os.getenv('OPENAI_URL')}")
+        logger.debug(f"ARGS.url: {ARGS.url}")
+
+        if not input_url:
+            url_to_use = ARGS.url or os.getenv("AGENTARTIFICIAL_URL") or os.getenv("OPENAI_URL")
+            if not url_to_use:
+                raise ValueError("No input_url provided")
+        else:
+            url_to_use = input_url
+
+        logger.info("\nMaking request")
+        logger.debug(f"\ninput_url: {url_to_use}")
+        payload = {
+            "messages": [message.model_dump()],
+            "model": ARGS.model or os.getenv("AGENTARTIFICIAL_MODEL") or os.getenv("OPENAI_MODEL")
+        }
+        headers = {"Content-Type": "application/json"}
+        if api_key := ARGS.api_key or os.getenv("AGENTARTIFICIAL_API_KEY") or os.getenv("OPENAI_API_KEY"):
+            headers["Authorization"] = f"Bearer {api_key}"
+
+        try:
+            response = requests.request(
+                method="POST",
+                url=url_to_use,
+                headers=headers,
+                json=payload,
+                timeout=60,
+            )
+            logger.debug(f"\nResponse:\n{response.content}")
+            return response.json()["choices"][0]["message"]["content"]
+
+        except Exception as e:
+            logger.debug(f"\nError making request:\n{e}")
+            raise e
+            
     def get_sample_result(self):
         """
         Asynchronously retrieves a sample result by selecting a random topic from the predefined TOPICS list,
