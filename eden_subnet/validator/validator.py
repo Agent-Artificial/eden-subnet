@@ -2,8 +2,11 @@ import random
 import json
 import time
 import os
+
+import requests.sessions
 import requests
 import asyncio
+from requests.exceptions import ConnectionError
 import numpy as np
 from pathlib import Path
 from loguru import logger
@@ -367,7 +370,6 @@ class Validator:
             logger.debug(f"\nError making request:\n{e}")
             raise e
             
-
     def get_sample_result(self):
         """
         Asynchronously retrieves a sample result by selecting a random topic from the predefined TOPICS list,
@@ -392,67 +394,6 @@ class Validator:
         )
         logger.debug(f"\nSample Result:\n{sample_result}")
         return sample_result
-
-    def cosine_similarity(self, embedding1, embedding2):
-        """
-        Calculates the cosine similarity between two embeddings.
-
-        Parameters:
-            embedding1: The first embedding.
-            embedding2: The second embedding.
-
-        Returns:
-            The normalized similarity value multiplied by 99.
-        """
-        logger.info("\nCalculating cosine similarity")
-
-        # Example vectors
-        vec1 = np.array(embedding1)
-        vec2 = np.array(embedding2)
-
-        # Normalizing vectors
-        vec1_norm = vec1 / np.linalg.norm(vec1)
-        vec2_norm = vec2 / np.linalg.norm(vec2)
-
-        # Calculating cosine distance
-        cosine_distance = 1 -cosine(vec1_norm, vec2_norm) * 99 + 99
-        if cosine_distance < 0:
-            cosine_distance = 1
-        logger.debug(f"\ncosine distance: {cosine_distance}")
-        return round(cosine_distance - 30)
-
-    def validate_input(self, embedding1, embedding2):
-        """
-        A function to validate input embeddings by evaluating sample similarity.
-
-        Parameters:
-            embedding1: The first embedding.
-            embedding2: The second embedding.
-
-        Returns:
-            The result of the validation after evaluating the similarity.
-        """
-        result = None
-        
-        if not embedding1:
-            logger.error("\nembedding1 is empty, cannot validate")
-            return 1
-        
-        logger.info("\nEvaluating sample similarity")
-        if not embedding2:
-            logger.warning("\nembedding2 is empty, setting to a score of 1")
-            zero_score = [1 for _ in range(len(embedding1))]
-            embedding2=zero_score
-        logger.debug(f"\nembedding1: {embedding1}\nembedding2: {embedding2}")
-        try:
-            response = self.cosine_similarity(
-                embedding1=embedding1, embedding2=embedding2
-            )
-            result = round(response, 2)
-        except Exception as e:
-            logger.warning(f"\ncould not connect to miner, adjusting score.\n{e}")
-            result = 1
-        return result
 
     async def get_miner_responses(self, selfuid, encoding, prompt_message, addresses):
         """
@@ -481,7 +422,8 @@ class Validator:
                 try:
                     async with aiohttp.ClientSession() as session:
                         response = await self.make_request_async(session, prompt_message, url)
-                    miner_responses[uid] = self.validate_input(encoding, response)
+                    if response:
+                        miner_responses[uid] = self.validate_input(encoding, response)
                 except Exception as e:
                     logger.debug(f"\nError getting similarities for {uid}: {e}\n{e.args}\n")
 
@@ -489,7 +431,25 @@ class Validator:
         await asyncio.gather(*tasks)
         
         return miner_responses
-
+    def make_request(self, message: Message, input_url: str = ""):
+        model = ARGS.model or os.getenv("AGENTARTIFICIAL_MODEL") or os.getenv("OPENAI_MODEL")
+        api_key = ARGS.api_key or os.getenv("AGENTARTIFICIAL_API_KEY") or os.getenv("OPENAI_API_KEY")
+        payload = {
+            "messages": [message],
+            "model": model or None,
+            "api_key": api_key or None
+        }
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}" or None
+        }
+        try:
+            response = requests.post(input_url, data=payload, headers=headers)
+        except Exception as e:
+            logger.debug(f"\nError making request: {e}\n{e.args}\n")
+            return
+        return response.text
+    
     async def make_request_async(self, session, message: Message, input_url: str = ""):
         """
         Makes an asynchronous request based on the provided messages and input URL.
@@ -505,38 +465,112 @@ class Validator:
         Raises:
             Exception: If an error occurs during the request process.
         """
-        logger.info("\nMaking async request")
         
-        url_to_use = input_url
         
-        if not url_to_use:
-            url_to_use = ARGS.url or os.getenv("AGENTARTIFICIAL_URL") or os.getenv("OPENAI_URL")
-            if not url_to_use:
-                raise ValueError("No input_url provided")            
-
-        # logger.debug(f"\nARGS.url: {ARGS.url}")
-        # logger.debug(f"\nAGENTARTIFICIAL_URL: {os.getenv('AGENTARTIFICIAL_URL')}")
-        # logger.debug(f"\nOPENAI_URL: {os.getenv('OPENAI_URL')}")
-        # logger.debug(f"\nFinal input_url: {url_to_use}")
+        url_to_use = input_url or ARGS.url or os.getenv("AGENTARTIFICIAL_URL") or os.getenv("OPENAI_URL")
+        model = ARGS.model or os.getenv("AGENTARTIFICIAL_MODEL") or os.getenv("OPENAI_MODEL")
+        api_key = ARGS.api_key or os.getenv("AGENTARTIFICIAL_API_KEY") or os.getenv("OPENAI_API_KEY")
+        
+        logger.info(f"\nMaking async request to: {url_to_use}")
+        
         payload = json.dumps({
-            "messages": [{"content": message.content, "role": "user"}],
-            "model": ARGS.model or os.getenv("AGENTARTIFICIAL_MODEL") or os.getenv("OPENAI_MODEL"),
+          "model": model,
+          "messages": [
+            {
+              "role": "user",
+              "content": message.content
+            }
+          ],
+          "api_key": api_key
         })
-        headers = {"Content-Type": "application/json"}
-        if api_key := ARGS.api_key or os.getenv("AGENTARTIFICIAL_API_KEY") or os.getenv("OPENAI_API_KEY"):
-            headers["Authorization"] = f"Bearer {api_key}"
-
+        headers = {
+          'Authorization': f'Bearer {api_key}',
+          'Content-Type': 'application/json'
+        }
+        
         try:
             async with session.post(url_to_use, headers=headers, data=payload, timeout=30) as response:
-                response_json = await response.json()
-                result = response_json["choices"][0]["message"]["content"]
-                logger.debug(f"\nResponse:\n{result}")
-                return result
+                if response.status == 200:
+                    try:
+                        response_json = await response.json()
+                        logger.success(f"\nRequest successfull: {response_json[:150]}...")
+                        return response_json
+                    except json.JSONDecodeError:
+                        logger.error(f"\nFailed to decode JSON from response. Status: {response.status}, Content-Type: {response.headers.get('Content-Type')}")
+                        return None
+                else:
+                    logger.error(f"\nRequest failed with status {response.status}. URL: {url_to_use}")
+                    response_text = await response.text()
+                    logger.error(f"Response content: {response_text[:200]}...")  # Log first 200 characters of response
+                    return None
+        except ConnectionError as e:
+            logger.error(f"\nNetwork error occurred: {e}\n{e.args}\n")
+            return None
         except Exception as e:
-            logger.debug(f"\nError making request:\n{e}")
-            if input_url != str(os.getenv("AGENTARTIFICIAL_URL")):
-                return []
+            logger.error(f"\nUnexpected error occurred: {e}\n{e.args}\n")
+            return None
 
+    def cosine_similarity(self, embedding1, embedding2):
+        """
+        Calculates the cosine similarity between two embeddings.
+
+        Parameters:
+            embedding1: The first embedding.
+            embedding2: The second embedding.
+
+        Returns:
+            The normalized similarity value multiplied by 99.
+        """
+        logger.info("\nCalculating cosine similarity")
+
+        # Example vectors
+        vec1 = np.array(embedding1)
+        vec2 = np.array(embedding2)
+
+        # Normalizing vectors
+        vec1_norm = vec1 / np.linalg.norm(vec1)
+        vec2_norm = vec2 / np.linalg.norm(vec2)
+
+        # Calculating cosine distance
+        cosine_distance = 1 -cosine(vec1_norm, vec2_norm) * 99 + 99
+        if cosine_distance < 0:
+            cosine_distance = 1
+        logger.success(f"\ncosine distance: {cosine_distance}")
+        return round(cosine_distance - 30)
+
+    def validate_input(self, embedding1, embedding2):
+        """
+        A function to validate input embeddings by evaluating sample similarity.
+
+        Parameters:
+            embedding1: The first embedding.
+            embedding2: The second embedding.
+
+        Returns:
+            The result of the validation after evaluating the similarity.
+        """
+        result = None
+        
+        if not embedding1:
+            logger.error("\nembedding1 is empty, cannot validate")
+            return 1
+        
+        
+        if not embedding2:
+            logger.warning("\nembedding2 is empty, setting score to 1")
+            return 1
+        # logger.debug(f"\nembedding1: {embedding1}\nembedding2: {embedding2}")
+        try:
+            response = self.cosine_similarity(
+                embedding1=embedding1, embedding2=embedding2
+            )
+            result = round(response, 2)
+            logger.success(f"\nvalidation result: {result}")
+        except Exception as e:
+            logger.warning(f"\ncould not connect to miner, adjusting score.\n{e}")
+            result = 1
+        return result * 100
+    
     async def validate_loop(self):
         """
         Executes a loop to validate weights and scoring based on sample results and similarities.
@@ -574,10 +608,10 @@ class Validator:
         score_dict = self.score_modules(
             weights_dict, address_dict, keys_dict, responses_dict
         )
-        logger.debug(score_dict)
+        logger.debug(f"score_dict: {score_dict}")
         
         # Convert the weights into a list of uids and weight values for voting.
-        logger.info("\nLoading key")
+        logger.info("\nLoading weights")
         uids = []
         weights = []
         
@@ -657,8 +691,9 @@ class Validator:
         """
         logger.info("\nChecking for unranked weights")
         for uid, _ in addresses.items():
-            if uid not in weights and uid != selfuid:
-                weights[uid] = 30
+            for id in  range(820):
+                if id not in weights and uid != selfuid:
+                    weights[uid] = 30
 
         return weights
 
@@ -680,7 +715,7 @@ class Validator:
             list: A list of scaled numbers between 0 and 1.
         """
         logger.info("\nScaling numbers")
-        min_value = min(numbers)
+        min_value = 1
         max_value = max(numbers)
         return [(number - min_value) / (max_value - min_value) for number in numbers]
 
@@ -709,9 +744,9 @@ class Validator:
             dict: A dictionary with the scaled values between 0 and 1.
         """
         logger.info("\nScaling dictionary values")
-        min_value = 0.00001
+        min_value = 0.000000000000001
         logger.debug(f"\nmin_value: {min_value}")
-        max_value = max(dictionary.values())
+        max_value = max(dictionary.values()) or 1
         logger.debug(f"\nmax_value: {max_value}")
         
         return {
@@ -758,12 +793,10 @@ class Validator:
             if uid not in scaled_similairity_dict:
                 continue       
             calculated_score = (
-                scaled_weight_dict[uid] * 0.4
-                + scaled_similairity_dict[uid] * 0.2
-                + scaled_staketo_dict[uid] * 0.2
+                (scaled_weight_dict[uid] * 0.4) + (scaled_similairity_dict[uid] * 0.2) + (scaled_staketo_dict[uid] * 0.2)
             ) 
             if calculated_score <= 0:
-                calculated_score = 0.01               
+                calculated_score = 0.00001
             logger.debug(f"UID: {uid}\nScore: {calculated_score}")
             scaled_scores[uid] = calculated_score
             
@@ -810,3 +843,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

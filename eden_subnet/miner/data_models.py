@@ -1,5 +1,5 @@
-from pydantic import BaseModel
-from typing import Literal
+from pydantic import BaseModel, Field
+from typing import Literal, Dict, List, Optional, Union
 from eden_subnet.base.data_models import ModuleSettings
 
 
@@ -45,3 +45,9 @@ class MinerSettings(ModuleSettings):
 class Message(BaseModel):
     content: str
     role: Literal["user", "assistant", "system"]
+
+
+class EmbeddingRequest(BaseModel):
+    messages: List[Union[Message, Dict[str, str]]]
+    models: Optional[List[str]]
+    api_key: Optional[str]
